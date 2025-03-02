@@ -1,7 +1,7 @@
 // Main game class
 class Game {
     constructor() {
-        this.version = "v0.8.7"; // Increment this when making changes (DO NOT DELETE THIS LINE)
+        this.version = "v0.8.8"; // Increment this when making changes (DO NOT DELETE THIS LINE)
         this.debugLog = [];      // Store debug messages
         this.maxDebugLines = 20;  // Number of debug lines to show
 
@@ -1307,37 +1307,39 @@ class Game {
             const touches = e.touches;
             const rect = this.canvas.getBoundingClientRect();
             
-            // Get actual canvas position and size
+            // Get actual canvas position and dimensions
             const canvasX = rect.left;
             const canvasY = rect.top;
-            const canvasWidth = rect.width;
-            const canvasHeight = rect.height;
+            const displayWidth = rect.width;
+            const displayHeight = rect.height;
             
-            // Calculate scaling factors
-            const scaleX = this.canvas.width / canvasWidth;
-            const scaleY = this.canvas.height / canvasHeight;
+            // Calculate scaling based on display vs actual canvas size
+            const scaleX = this.canvas.width / displayWidth;
+            const scaleY = this.canvas.height / displayHeight;
             
-            // Debug touch coordinates and current game state
             if (touches.length > 0) {
                 const touch = touches[0];
-                // Convert touch coordinates to canvas space
-                const x = (touch.clientX - canvasX) * scaleX;
-                const y = (touch.clientY - canvasY) * scaleY;
+                // Convert touch position to canvas coordinates
+                const touchX = touch.clientX - canvasX;  // Position relative to canvas
+                const touchY = touch.clientY - canvasY;
                 
-                this.debug(`Raw touch: ${touch.clientX},${touch.clientY}`);
-                this.debug(`Canvas pos: ${canvasX},${canvasY}`);
-                this.debug(`Canvas size: ${canvasWidth}x${canvasHeight}`);
+                // Scale the position
+                const x = touchX * scaleX;
+                const y = touchY * scaleY;
+                
+                this.debug(`Raw touch: ${Math.round(touch.clientX)},${Math.round(touch.clientY)}`);
+                this.debug(`Canvas offset: ${Math.round(canvasX)},${Math.round(canvasY)}`);
+                this.debug(`Touch relative: ${Math.round(touchX)},${Math.round(touchY)}`);
+                this.debug(`Canvas display: ${Math.round(displayWidth)}x${Math.round(displayHeight)}`);
+                this.debug(`Canvas actual: ${this.canvas.width}x${this.canvas.height}`);
                 this.debug(`Scale: ${scaleX.toFixed(2)}x${scaleY.toFixed(2)}`);
-                this.debug(`Adjusted touch: ${Math.round(x)},${Math.round(y)}`);
-                
-                // Debug all button positions in house state
+                this.debug(`Final pos: ${Math.round(x)},${Math.round(y)}`);
+
+                // Debug button positions
                 if (this.gameState === 'house') {
                     Object.entries(this.menuControls).forEach(([name, button]) => {
-                        const buttonInfo = `${name}: x=${button.x}-${button.x + button.width}, y=${button.y}-${button.y + button.height}`;
-                        this.debug(buttonInfo);
-                        
                         if (this.isInsideButton(x, y, button)) {
-                            this.debug(`HIT -> ${name} at ${Math.round(x)},${Math.round(y)}`);
+                            this.debug(`HIT -> ${name}`);
                             if (name === 'shopButton') {
                                 this.gameState = 'shop';
                                 return;
