@@ -5,7 +5,12 @@
 
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
-    <meta http-equiv="Expires" content="0">    
+    <meta http-equiv="Expires" content="0">
+    
+    <meta http-equiv="Last-Modified" content="<?php echo gmdate('D, d M Y H:i:s') ?> GMT">
+    
+    <meta name="turbolinks-cache-control" content="no-cache">
+    
     <style>
         canvas {
             border: 4px solid black;
@@ -33,12 +38,22 @@
 </head>
 <body>
     <canvas id="gameCanvas"></canvas>
-    <script src="enemy.js"></script>
-    <script src="game.js"></script>
+    <script src="enemy.js?v=0.8.8"></script>
+    <script src="game.js?v=0.8.8"></script>
     <script>
         const game = new Game();
         // The game loop is now started in the constructor
         // No need to call startGame() anymore
+
+        // Force reload if version changes
+        const currentVersion = "v0.8.8";
+        const lastVersion = localStorage.getItem('gameVersion');
+        if (lastVersion !== currentVersion) {
+            localStorage.setItem('gameVersion', currentVersion);
+            if (lastVersion) { // Only reload if this isn't the first visit
+                window.location.reload(true);
+            }
+        }
     </script>
 </body>
 </html> 

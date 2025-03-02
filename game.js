@@ -1,7 +1,9 @@
 // Main game class
 class Game {
     constructor() {
-        this.version = "v0.8.8"; // Increment this when making changes (DO NOT DELETE THIS LINE)
+        this.version = "v0.8.9"; // Increment version (DO NOT DELETE THIS LINE)
+        // Add timestamp to version for absolute cache busting
+        this.version += ` (${new Date().toISOString().slice(0, 19)})`;
         this.debugLog = [];      // Store debug messages
         this.maxDebugLines = 20;  // Number of debug lines to show
 
