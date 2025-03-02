@@ -1,9 +1,13 @@
 // Main game class
 class Game {
     constructor() {
-        this.version = "v0.8.23"; // Increment version
-        // Add timestamp to version for absolute cache busting
+        // ----
+        // (DO NOT DELETE THIS LINE)
+        this.version = "v0.8.24"; // Increment version 
         this.version += ` (${new Date().toISOString().slice(0, 19)})`;
+        // ----
+
+        // Add timestamp to version for absolute cache busting
         this.debugLog = [];      // Store debug messages
         this.maxDebugLines = 20;  // Number of debug lines to show
 
@@ -1117,8 +1121,26 @@ class Game {
         this.debug(`Button pressed: ${button.id}`);
         
         if (button.id === 'start') {
-            this.initializeAudio();
-            this.gameState = 'house';
+            // Initialize audio and transition to house screen
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                this.audioContext = new AudioContext();
+                this.unlockAudioContext(this.audioContext)
+                    .then(() => {
+                        this.initializeAudio();
+                        // We don't immediately change gameState because initializeAudio 
+                        // will handle that after loading sounds
+                    })
+                    .catch(error => {
+                        console.error('Error unlocking audio context:', error);
+                        // Fall back to changing state directly if audio fails
+                        this.gameState = 'house';
+                    });
+            } catch (error) {
+                console.error('Error starting game:', error);
+                // Fall back to changing state directly if audio fails
+                this.gameState = 'house';
+            }
             return;
         }
 
