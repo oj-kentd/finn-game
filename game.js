@@ -1,7 +1,7 @@
 // Main game class
 class Game {
     constructor() {
-        this.version = "v0.8.2"; // Incremented version number
+        this.version = "v0.8.4"; // Increment this when making changes (DO NOT DELETE THIS LINE)
         this.debugLog = [];      // Store debug messages
         this.maxDebugLines = 5;  // Number of debug lines to show
 
@@ -318,31 +318,31 @@ class Game {
         // Track last play time for each sound
         this.lastSoundPlayed = {};
 
-        // Add menu touch controls
+        // Update menu touch controls with adjusted positions
         this.menuControls = {
             shopButton: {
-                x: 200,
-                y: 120,
+                x: 40,  // Was 200, align with text
+                y: 90,  // Was 120, align with text
                 width: 200,
                 height: 60,
                 text: '1: Shop'
             },
             radioButton: {
-                x: 200,
-                y: 180,
+                x: 40,  // Was 200
+                y: 150, // Was 180
                 width: 300,
                 height: 60,
                 text: '2: Listen to Radio'
             },
             defendButton: {
-                x: 200,
-                y: 240,
+                x: 40,  // Was 200
+                y: 210, // Was 240
                 width: 300,
                 height: 60,
                 text: '3: Start Defend Mode'
             },
             backButton: {
-                x: 100,
+                x: 40,  // Was 100
                 y: this.canvas.height - 100,
                 width: 200,
                 height: 60,
@@ -871,10 +871,15 @@ class Game {
             this.ctx.font = '32px Arial';
             this.ctx.fillText(button.text, button.x + 20, button.y + 40);
             
-            // Draw debug outline
+            // Draw debug outline and coordinates
             this.ctx.strokeStyle = '#ff0';
             this.ctx.lineWidth = 2;
             this.ctx.strokeRect(button.x, button.y, button.width, button.height);
+            
+            // Draw debug coordinates
+            this.ctx.fillStyle = '#ff0';
+            this.ctx.font = '12px Arial';
+            this.ctx.fillText(`${Math.round(button.x)},${Math.round(button.y)}`, button.x, button.y - 5);
             
             this.ctx.fillStyle = '#4a6fa5';
         });
@@ -1301,11 +1306,17 @@ class Game {
                 const y = (touch.clientY - rect.top) * scaleY;
                 this.debug(`Touch at: ${Math.round(x)},${Math.round(y)} (State: ${this.gameState})`);
                 
-                // Debug button positions
+                // Debug all button positions
                 if (this.gameState === 'house') {
                     Object.entries(this.menuControls).forEach(([name, button]) => {
+                        this.debug(`${name}: x=${button.x}-${button.x + button.width}, y=${button.y}-${button.y + button.height}`);
                         if (this.isInsideButton(x, y, button)) {
-                            this.debug(`Activating ${name}`);
+                            this.debug(`HIT -> ${name}`);
+                            if (name === 'shopButton') {
+                                this.debug('Changing to shop state');
+                                this.gameState = 'shop';
+                                return;
+                            }
                         }
                     });
                 }
