@@ -3,7 +3,7 @@ class Game {
     constructor() {
         // ----
         // (DO NOT DELETE THIS LINE)
-        this.version = "v0.8.24"; // Increment version 
+        this.version = "v0.8.24"; // Increment version UP
         this.version += ` (${new Date().toISOString().slice(0, 19)})`;
         // ----
 
@@ -179,6 +179,77 @@ class Game {
                 this.canvas.width / rect.width,
                 this.canvas.height / rect.height
             );
+        };
+
+        // Add sound configurations
+        this.soundConfigs = {
+            // Background music - reduced to 30% of original volume
+            houseBgm: { 
+                url: './sounds/house.mp3',
+                volume: 0.15,
+                loop: true 
+            },
+            defendBgm: { 
+                url: './sounds/defend.mp3',
+                volume: 0.15,
+                loop: true 
+            },
+            radioSong: {
+                url: './sounds/radio.mp3',
+                volume: 0.25
+            },
+            
+            // Weapon sounds - reduced to 25% of original volume
+            'shoot.minigun': { 
+                url: './sounds/minigun.mp3',
+                volume: 0.1
+            },
+            'shoot.bat': { 
+                url: './sounds/bat.mp3',
+                volume: 0.1
+            },
+            'shoot.laserGun': { 
+                url: './sounds/laser.mp3',
+                volume: 0.1
+            },
+            'shoot.rpg': { 
+                url: './sounds/rpg.mp3',
+                volume: 0.1
+            },
+            'shoot.pistol': { 
+                url: './sounds/pistol.mp3',
+                volume: 0.1
+            },
+            
+            // Game effects - keep these at current volume
+            enemyDeath: { 
+                url: './sounds/enemy-death.mp3',
+                volume: 0.5 
+            },
+            playerHit: { 
+                url: './sounds/player-hit.mp3',
+                volume: 0.5 
+            },
+            purchase: { 
+                url: './sounds/purchase.mp3',
+                volume: 0.5 
+            },
+            noMoney: { 
+                url: './sounds/no-money.mp3',
+                volume: 0.5 
+            },
+            waveStart: { 
+                url: './sounds/wave-start.mp3',
+                volume: 0.5 
+            },
+            victory: { 
+                url: './sounds/victory.mp3',
+                volume: 0.6 
+            },
+            gameOver: { 
+                url: './sounds/game-over.mp3',
+                volume: 0.6 
+            }
         };
     }
 
