@@ -1301,108 +1301,44 @@ class Game {
     }
 
     setupTouchControls() {
-        this.debug('Setting up touch controls');
-        
         const handleTouch = (e) => {
             e.preventDefault();
-            e.stopPropagation();
-            
-            const touches = e.touches;
             const rect = this.canvas.getBoundingClientRect();
+            const scale = Math.min(this.canvas.width / rect.width, this.canvas.height / rect.height);
             
-            // Simpler scaling calculation
-            const scaleX = this.canvas.width / rect.width;
-            const scaleY = this.canvas.height / rect.height;
-            
-            // Reset button states first
-            this.touchControls.leftButton.pressed = false;
-            this.touchControls.rightButton.pressed = false;
-            
-            if (touches.length > 0) {
-                const touch = touches[0];
-                const x = (touch.clientX - rect.left) * scaleX;
-                const y = (touch.clientY - rect.top) * scaleY;
+            if (e.touches.length > 0) {
+                const touch = e.touches[0];
+                const x = (touch.clientX - rect.left) * scale;
+                const y = (touch.clientY - rect.top) * scale;
                 
-                // Debug info
-                this.debug(`Raw touch: ${Math.round(touch.clientX)},${Math.round(touch.clientY)}`);
-                this.debug(`Scaled pos: ${Math.round(x)},${Math.round(y)}`);
+                this.debug(`Touch: ${Math.round(x)},${Math.round(y)}`);
 
-                // Handle menu buttons first
+                // Handle menu buttons with early return
                 if (this.gameState === 'house') {
-                    Object.entries(this.menuControls).forEach(([name, button]) => {
-                        const buttonRight = button.x + button.width;
-                        const buttonBottom = button.y + button.height;
-                        this.debug(`${name}: (${button.x},${button.y})-(${buttonRight},${buttonBottom})`);
-                        
-                        if (x >= button.x && x <= buttonRight && y >= button.y && y <= buttonBottom) {
-                            this.debug(`HIT -> ${name}`);
-                            switch(name) {
-                                case 'shopButton':
-                                    this.gameState = 'shop';
-                                    break;
-                                case 'radioButton':
-                                    this.listenToRadio();
-                                    break;
-                                case 'defendButton':
-                                    if (this.player.hasWeapon) {
-                                        this.gameState = 'defend';
-                                        this.switchBackgroundMusic('defend');
-                                        this.startWave();
-                                    }
-                                    break;
+                    const buttons = ['shopButton', 'radioButton', 'defendButton'];
+                    for (const name of buttons) {
+                        const button = this.menuControls[name];
+                        if (y > button.y && y < button.y + button.height - 1 && 
+                            x > button.x && x < button.x + button.width) {
+                            this.debug(`Activating: ${name}`);
+                            if (name === 'shopButton') this.gameState = 'shop';
+                            else if (name === 'radioButton') this.listenToRadio();
+                            else if (name === 'defendButton' && this.player.hasWeapon) {
+                                this.gameState = 'defend';
+                                this.switchBackgroundMusic('defend');
+                                this.startWave();
                             }
-                            return; // Exit after handling button
+                            return; // Exit after first hit
                         }
-                    });
-                } else if (this.gameState === 'shop') {
-                    // Handle shop buttons
-                    if (this.isInsideButton(x, y, this.menuControls.backButton)) {
-                        this.gameState = 'house';
-                        return;
                     }
-                    // Handle weapon selection
-                    let buttonY = 240;
-                    Object.entries(this.weaponShop).forEach(([key, weapon], index) => {
-                        if (weapon.secret && !this.oakTree.scrollFound) return;
-                        if (y >= buttonY - 40 && y <= buttonY + 20 && x >= 100 && x <= this.canvas.width - 200) {
-                            this.shopSelection = index;
-                            this.purchaseSelectedWeapon();
-                            return;
-                        }
-                        buttonY += 100;
-                    });
                 }
                 
-                // Handle game controls if no menu button was pressed
-                if (this.isInsideCircle(x, y, this.touchControls.leftButton)) {
-                    this.touchControls.leftButton.pressed = true;
-                }
-                if (this.isInsideCircle(x, y, this.touchControls.rightButton)) {
-                    this.touchControls.rightButton.pressed = true;
-                }
-                if (this.isInsideCircle(x, y, this.touchControls.shootButton)) {
-                    this.shoot();
-                }
+                // Handle game controls only if no menu button was hit
+                this.handleGameControls(x, y);
             }
         };
 
-        // Add touch event listeners
-        ['touchstart', 'touchmove'].forEach(event => {
-            this.canvas.addEventListener(event, handleTouch, { passive: false });
-        });
-
-        this.canvas.addEventListener('touchend', (e) => {
-            e.preventDefault();
-            this.touchControls.leftButton.pressed = false;
-            this.touchControls.rightButton.pressed = false;
-        }, { passive: false });
-    }
-
-    isInsideCircle(x, y, circle) {
-        return Math.sqrt(
-            Math.pow(x - circle.x, 2) + 
-            Math.pow(y - circle.y, 2)
-        ) < circle.radius;
+        this.canvas.addEventListener('touchstart', handleTouch, { passive: false });
     }
 
     handleAction() {
