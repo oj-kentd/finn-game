@@ -3,7 +3,7 @@ class Game {
     constructor() {
         // ----
         // (DO NOT DELETE THIS LINE)
-        this.version = "v0.8.24"; // Increment version UP
+        this.version = "v0.8.25"; // Increment version UP
         this.version += ` (${new Date().toISOString().slice(0, 19)})`;
         // ----
 
