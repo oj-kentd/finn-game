@@ -122,49 +122,49 @@ class Game {
             maxFrames: 10
         };
 
-        // Update start screen interaction
+        // Update start screen interaction to be more touch-friendly
         const startGame = async (e) => {
             e.preventDefault(); // Prevent default behavior
+            e.stopPropagation(); // Stop event bubbling
+            
             if (this.gameState === 'start') {
                 try {
-                    // Create audio context immediately on user interaction
+                    // Force touch events to be enabled
+                    this.touchEnabled = true;
+                    
+                    // Create audio context immediately
                     const AudioContext = window.AudioContext || window.webkitAudioContext;
                     this.audioContext = new AudioContext();
                     
-                    // Force unlock audio on iOS/Safari
-                    if (this.audioContext.state === 'suspended') {
-                        await this.audioContext.resume();
-                    }
+                    // Force unlock audio
+                    await this.unlockAudioContext(this.audioContext);
                     
-                    // Create and play a silent sound to unlock audio
-                    const silentBuffer = this.audioContext.createBuffer(1, 1, 22050);
-                    const source = this.audioContext.createBufferSource();
-                    source.buffer = silentBuffer;
-                    source.connect(this.audioContext.destination);
-                    source.start();
-
                     // Initialize audio system
                     this.initializeAudio();
                     
                     // Change game state
                     this.gameState = 'house';
                     
-                    // Remove event listeners
-                    this.canvas.removeEventListener('touchstart', startGame);
-                    this.canvas.removeEventListener('touchend', startGame);
-                    this.canvas.removeEventListener('click', startGame);
+                    // Remove all start screen listeners
+                    ['touchstart', 'touchend', 'click'].forEach(event => {
+                        this.canvas.removeEventListener(event, startGame);
+                    });
+
+                    // Initialize touch controls immediately
+                    this.setupTouchControls();
                 } catch (error) {
                     console.error('Error starting game:', error);
                     // Fallback - proceed without audio
                     this.gameState = 'house';
+                    this.setupTouchControls();
                 }
             }
         };
 
-        // Add multiple event listeners for iOS/Safari
-        this.canvas.addEventListener('touchstart', startGame);
-        this.canvas.addEventListener('touchend', startGame);
-        this.canvas.addEventListener('click', startGame);
+        // Add all possible event listeners for starting
+        ['touchstart', 'touchend', 'click'].forEach(event => {
+            this.canvas.addEventListener(event, startGame, { passive: false });
+        });
 
         // Don't initialize audio yet, just load the configurations
         this.soundConfigs = {
@@ -304,6 +304,38 @@ class Game {
         
         // Track last play time for each sound
         this.lastSoundPlayed = {};
+
+        // Add menu touch controls
+        this.menuControls = {
+            shopButton: {
+                x: 200,
+                y: 120,
+                width: 200,
+                height: 60,
+                text: '1: Shop'
+            },
+            radioButton: {
+                x: 200,
+                y: 180,
+                width: 300,
+                height: 60,
+                text: '2: Listen to Radio'
+            },
+            defendButton: {
+                x: 200,
+                y: 240,
+                width: 300,
+                height: 60,
+                text: '3: Start Defend Mode'
+            },
+            backButton: {
+                x: 100,
+                y: this.canvas.height - 100,
+                width: 200,
+                height: 60,
+                text: 'Back to House'
+            }
+        };
     }
 
     toggleSound() {
@@ -779,12 +811,27 @@ class Game {
         this.ctx.fillStyle = 'white';
         this.ctx.font = '40px Arial';  // Was 20px
         this.ctx.fillText(`Coins: ${this.coins}`, 40, 60);
-        this.ctx.fillText('1: Shop', 40, 120);
-        this.ctx.fillText('2: Listen to Radio', 40, 180);
 
-        if (this.player.hasWeapon) {
-            this.ctx.fillText('3: Start Defend Mode', 40, 240);
-        }
+        // Draw menu buttons
+        this.ctx.fillStyle = '#4a6fa5';
+        this.ctx.globalAlpha = 0.8;
+
+        Object.values(this.menuControls).forEach(button => {
+            if (button === this.menuControls.defendButton && !this.player.hasWeapon) {
+                return; // Don't draw defend button if no weapon
+            }
+            if (button === this.menuControls.backButton) {
+                return; // Don't draw back button in house
+            }
+
+            this.ctx.fillRect(button.x, button.y, button.width, button.height);
+            this.ctx.fillStyle = 'white';
+            this.ctx.font = '32px Arial';
+            this.ctx.fillText(button.text, button.x + 20, button.y + 40);
+            this.ctx.fillStyle = '#4a6fa5';
+        });
+
+        this.ctx.globalAlpha = 1.0;
     }
 
     drawDefendMode() {
@@ -983,24 +1030,33 @@ class Game {
         this.ctx.font = '48px Arial';  // Was 24px
         this.ctx.fillText(`Coins: ${this.coins}`, 40, 80);
 
-        this.ctx.font = '40px Arial';  // Was 20px
-        let y = 240;  // Was 120
+        // Draw back button
+        this.ctx.fillStyle = '#4a6fa5';
+        this.ctx.globalAlpha = 0.8;
+        const backButton = this.menuControls.backButton;
+        this.ctx.fillRect(backButton.x, backButton.y, backButton.width, backButton.height);
+        this.ctx.fillStyle = 'white';
+        this.ctx.font = '32px Arial';
+        this.ctx.fillText(backButton.text, backButton.x + 20, backButton.y + 40);
+        this.ctx.globalAlpha = 1.0;
+
+        // Draw weapon selection buttons
+        let y = 240;
         Object.entries(this.weaponShop).forEach(([key, weapon], index) => {
             if (weapon.secret && !this.oakTree.scrollFound) return;
 
-            if (index === this.shopSelection) {
-                this.ctx.fillStyle = '#f1c40f';
-                this.ctx.fillRect(100, y - 40, this.canvas.width - 200, 60);
-            }
-
-            this.ctx.fillStyle = '#ecf0f1';
+            this.ctx.fillStyle = index === this.shopSelection ? '#f1c40f' : '#4a6fa5';
+            this.ctx.globalAlpha = 0.8;
+            this.ctx.fillRect(100, y - 40, this.canvas.width - 200, 60);
+            
+            this.ctx.fillStyle = '#ffffff';
             let text = `${weapon.name} - ${weapon.price} coins (Damage: ${weapon.damage})`;
             if (weapon.secret) {
                 text += ' [LEGENDARY]';
                 this.ctx.fillStyle = '#FFD700';
             }
             this.ctx.fillText(text, 120, y);
-            y += 100;  // Was 50
+            y += 100;
         });
 
         this.ctx.fillStyle = '#bdc3c7';
@@ -1179,17 +1235,28 @@ class Game {
     }
 
     setupTouchControls() {
-        this.canvas.addEventListener('touchstart', (e) => {
-            e.preventDefault(); // Prevent scrolling
+        console.log('Setting up touch controls');
+        
+        const handleTouch = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
             const touches = e.touches;
+            const rect = this.canvas.getBoundingClientRect();
+            const scaleX = this.canvas.width / rect.width;
+            const scaleY = this.canvas.height / rect.height;
+            
+            // Reset button states
+            this.touchControls.leftButton.pressed = false;
+            this.touchControls.rightButton.pressed = false;
             
             for (let i = 0; i < touches.length; i++) {
                 const touch = touches[i];
-                const rect = this.canvas.getBoundingClientRect();
-                const x = touch.clientX - rect.left;
-                const y = touch.clientY - rect.top;
+                // Convert touch coordinates to canvas coordinates
+                const x = (touch.clientX - rect.left) * scaleX;
+                const y = (touch.clientY - rect.top) * scaleY;
                 
-                // Check which button was pressed
+                // Check each button
                 if (this.isInsideCircle(x, y, this.touchControls.leftButton)) {
                     this.touchControls.leftButton.pressed = true;
                 }
@@ -1203,37 +1270,18 @@ class Game {
                     this.handleAction();
                 }
             }
+        };
+
+        // Add touch event listeners with passive: false
+        ['touchstart', 'touchmove'].forEach(event => {
+            this.canvas.addEventListener(event, handleTouch, { passive: false });
         });
 
         this.canvas.addEventListener('touchend', (e) => {
             e.preventDefault();
             this.touchControls.leftButton.pressed = false;
             this.touchControls.rightButton.pressed = false;
-        });
-
-        this.canvas.addEventListener('touchmove', (e) => {
-            e.preventDefault();
-            const touches = e.touches;
-            
-            // Reset buttons
-            this.touchControls.leftButton.pressed = false;
-            this.touchControls.rightButton.pressed = false;
-            
-            // Check new positions
-            for (let i = 0; i < touches.length; i++) {
-                const touch = touches[i];
-                const rect = this.canvas.getBoundingClientRect();
-                const x = touch.clientX - rect.left;
-                const y = touch.clientY - rect.top;
-                
-                if (this.isInsideCircle(x, y, this.touchControls.leftButton)) {
-                    this.touchControls.leftButton.pressed = true;
-                }
-                if (this.isInsideCircle(x, y, this.touchControls.rightButton)) {
-                    this.touchControls.rightButton.pressed = true;
-                }
-            }
-        });
+        }, { passive: false });
     }
 
     isInsideCircle(x, y, circle) {
@@ -1246,51 +1294,119 @@ class Game {
     handleAction() {
         switch(this.gameState) {
             case 'house':
-                if (this.player.x < this.house.width) {
+                // Check menu button touches
+                const rect = this.canvas.getBoundingClientRect();
+                const scaleX = this.canvas.width / rect.width;
+                const scaleY = this.canvas.height / rect.height;
+                const x = event.touches[0].clientX * scaleX;
+                const y = event.touches[0].clientY * scaleY;
+
+                if (this.isInsideButton(x, y, this.menuControls.shopButton)) {
                     this.gameState = 'shop';
+                } else if (this.isInsideButton(x, y, this.menuControls.radioButton)) {
+                    this.listenToRadio();
+                } else if (this.isInsideButton(x, y, this.menuControls.defendButton) && this.player.hasWeapon) {
+                    this.gameState = 'defend';
+                    this.switchBackgroundMusic('defend');
+                    this.startWave();
                 }
                 break;
             case 'shop':
-                this.purchaseWeapon();
+                // Handle shop touch controls
+                if (this.isInsideButton(x, y, this.menuControls.backButton)) {
+                    this.gameState = 'house';
+                } else {
+                    this.purchaseSelectedWeapon();
+                }
                 break;
             case 'defend':
-                // Any defend mode specific actions
+                // Existing defend mode actions
                 break;
         }
     }
 
+    isInsideButton(x, y, button) {
+        return x > button.x && 
+               x < button.x + button.width && 
+               y > button.y && 
+               y < button.y + button.height;
+    }
+
     drawTouchControls() {
-        this.ctx.globalAlpha = 0.5;
-        
-        // Draw movement buttons
+        // Make controls more visible
+        this.ctx.globalAlpha = 0.7; // More visible
+
+        // Left button
         this.ctx.fillStyle = '#333';
         this.ctx.beginPath();
         this.ctx.arc(this.touchControls.leftButton.x, this.touchControls.leftButton.y, 
             this.touchControls.leftButton.radius, 0, Math.PI * 2);
         this.ctx.fill();
+        
+        // Add arrow symbol
+        this.ctx.fillStyle = 'white';
+        this.ctx.font = '30px Arial';
+        this.ctx.fillText('←', 
+            this.touchControls.leftButton.x - 15, 
+            this.touchControls.leftButton.y + 10);
+
+        // Right button
+        this.ctx.fillStyle = '#333';
         this.ctx.beginPath();
         this.ctx.arc(this.touchControls.rightButton.x, this.touchControls.rightButton.y, 
             this.touchControls.rightButton.radius, 0, Math.PI * 2);
         this.ctx.fill();
+        
+        // Add arrow symbol
+        this.ctx.fillStyle = 'white';
+        this.ctx.fillText('→', 
+            this.touchControls.rightButton.x - 15, 
+            this.touchControls.rightButton.y + 10);
 
-        // Draw shoot button
+        // Shoot button
         this.ctx.fillStyle = '#f00';
         this.ctx.beginPath();
         this.ctx.arc(this.touchControls.shootButton.x, this.touchControls.shootButton.y, 
             this.touchControls.shootButton.radius, 0, Math.PI * 2);
         this.ctx.fill();
+        
+        // Add shoot text
+        this.ctx.fillStyle = 'white';
+        this.ctx.fillText('SHOOT', 
+            this.touchControls.shootButton.x - 40, 
+            this.touchControls.shootButton.y + 10);
 
-        // Draw action button
+        // Action button
         this.ctx.fillStyle = '#0f0';
         this.ctx.beginPath();
         this.ctx.arc(this.touchControls.actionButton.x, this.touchControls.actionButton.y, 
             this.touchControls.actionButton.radius, 0, Math.PI * 2);
         this.ctx.fill();
+        
+        // Add action text
+        this.ctx.fillStyle = 'white';
+        this.ctx.fillText('ACTION', 
+            this.touchControls.actionButton.x - 40, 
+            this.touchControls.actionButton.y + 10);
 
         this.ctx.globalAlpha = 1.0;
     }
 
     isMobileDevice() {
-        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        return true; // Always show touch controls for testing
+        // return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    }
+
+    async unlockAudioContext(audioContext) {
+        if (audioContext.state === 'suspended') {
+            await audioContext.resume();
+        }
+        // Create and play a silent sound
+        const buffer = audioContext.createBuffer(1, 1, 22050);
+        const source = audioContext.createBufferSource();
+        source.buffer = buffer;
+        source.connect(audioContext.destination);
+        source.start(0);
+        return audioContext;
     }
 } 
