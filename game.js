@@ -131,75 +131,71 @@ class Game {
 
         // Don't initialize audio yet, just load the configurations
         this.soundConfigs = {
-            // Background music from FreeSound
+            // Background music - reduced to 30% of original volume
             houseBgm: { 
-                url: 'https://freesound.org/data/previews/439/439809_4799502-lq.mp3', 
-                volume: 0.3, 
+                url: './sounds/house.mp3',
+                volume: 0.15,  // Was 0.3
                 loop: true 
             },
             defendBgm: { 
-                url: 'https://freesound.org/data/previews/467/467087_8874847-lq.mp3', 
-                volume: 0.3, 
+                url: './sounds/defend.mp3',
+                volume: 0.15,  // Was 0.3
                 loop: true 
             },
-            radioSong: { 
-                url: 'https://freesound.org/data/previews/415/415267_7866397-lq.mp3', 
-                volume: 0.5 
+            radioSong: {
+                url: './sounds/radio.mp3',
+                volume: 0.25   // Was 0.5
             },
             
-            // Sound effects from FreeSound
+            // Weapon sounds - reduced to 25% of original volume
             'shoot.minigun': { 
-                url: 'https://freesound.org/data/previews/362/362425_6629888-lq.mp3', 
-                volume: 0.4 
+                url: './sounds/minigun.mp3',
+                volume: 0.1    // Was 0.4
             },
             'shoot.bat': { 
-                url: 'https://freesound.org/data/previews/319/319590_5436801-lq.mp3', 
-                volume: 0.4 
+                url: './sounds/bat.mp3',
+                volume: 0.1    // Was 0.4
             },
             'shoot.laserGun': { 
-                url: 'https://freesound.org/data/previews/387/387232_7343577-lq.mp3', 
-                volume: 0.4 
+                url: './sounds/laser.mp3',
+                volume: 0.1    // Was 0.4
             },
             'shoot.rpg': { 
-                url: 'https://freesound.org/data/previews/523/523264_7724198-lq.mp3', 
-                volume: 0.4 
+                url: './sounds/rpg.mp3',
+                volume: 0.1    // Was 0.4
             },
             'shoot.pistol': { 
-                url: 'https://freesound.org/data/previews/510/510846_9523062-lq.mp3', 
-                volume: 0.4 
+                url: './sounds/pistol.mp3',
+                volume: 0.1    // Was 0.4
             },
             
-            // Game effects
-            enemyHit: { 
-                url: 'https://freesound.org/data/previews/344/344775_5237037-lq.mp3', 
-                volume: 0.5 
-            },
+            // Game effects - keep these at current volume
             enemyDeath: { 
-                url: 'https://freesound.org/data/previews/368/368691_6436863-lq.mp3', 
+                url: './sounds/enemy-death.mp3',
                 volume: 0.5 
             },
             playerHit: { 
-                url: 'https://freesound.org/data/previews/434/434462_8386243-lq.mp3', 
+                url: './sounds/player-hit.mp3',
                 volume: 0.5 
             },
             purchase: { 
-                url: 'https://freesound.org/data/previews/515/515625_2554674-lq.mp3', 
+                url: './sounds/purchase.mp3',
                 volume: 0.5 
             },
             noMoney: { 
-                url: 'https://freesound.org/data/previews/420/420530_8374303-lq.mp3', 
+                url: './sounds/no-money.mp3',
                 volume: 0.5 
             },
             waveStart: { 
-                url: 'https://freesound.org/data/previews/507/507906_9962852-lq.mp3', 
+                url: './sounds/wave-start.mp3',
                 volume: 0.5 
             },
             victory: { 
-                url: 'https://freesound.org/data/previews/456/456966_9348364-lq.mp3', 
+                url: './sounds/victory.mp3',
                 volume: 0.6 
             },
             gameOver: { 
-                url: 'https://freesound.org/data/previews/362/362205_6629888-lq.mp3', 
+                url: './sounds/game-over.mp3',
                 volume: 0.6 
             }
         };
@@ -226,6 +222,51 @@ class Game {
             height: 600,                  // Taller tree
             scrollFound: false
         };
+
+        // Add touch control properties
+        this.touchControls = {
+            leftButton: {
+                x: 50,
+                y: this.canvas.height - 150,
+                radius: 40,
+                pressed: false
+            },
+            rightButton: {
+                x: 150,
+                y: this.canvas.height - 150,
+                radius: 40,
+                pressed: false
+            },
+            shootButton: {
+                x: this.canvas.width - 100,
+                y: this.canvas.height - 150,
+                radius: 50,
+                pressed: false
+            },
+            actionButton: {
+                x: this.canvas.width - 200,
+                y: this.canvas.height - 150,
+                radius: 40,
+                pressed: false
+            }
+        };
+
+        // Add touch event listeners
+        this.setupTouchControls();
+
+        // Add sound cooldown system
+        this.soundCooldowns = {
+            'shoot.minigun': 100,  // 100ms cooldown for minigun
+            'shoot.bat': 200,      // 200ms cooldown for bat
+            'shoot.laserGun': 150, // 150ms cooldown for laser
+            'shoot.rpg': 500,      // 500ms cooldown for rpg
+            'shoot.pistol': 250,   // 250ms cooldown for pistol
+            'shoot.sniper3000': 400, // 400ms cooldown for sniper
+            'enemyDeath': 100      // 100ms cooldown for death sound
+        };
+        
+        // Track last play time for each sound
+        this.lastSoundPlayed = {};
     }
 
     toggleSound() {
@@ -259,53 +300,49 @@ class Game {
 
         // Updated sound configuration with local paths
         const soundConfigs = {
-            // Background music
+            // Background music - reduced to 30% of original volume
             houseBgm: { 
                 url: './sounds/house.mp3',
-                volume: 0.3, 
+                volume: 0.15,  // Was 0.3
                 loop: true 
             },
             defendBgm: { 
                 url: './sounds/defend.mp3',
-                volume: 0.3, 
+                volume: 0.15,  // Was 0.3
                 loop: true 
             },
             radioSong: {
                 url: './sounds/radio.mp3',
-                volume: 0.5
+                volume: 0.25   // Was 0.5
             },
 
-            // Weapon sounds
+            // Weapon sounds - reduced to 25% of original volume
             'shoot.minigun': { 
                 url: './sounds/minigun.mp3',
-                volume: 0.4 
+                volume: 0.1    // Was 0.4
             },
             'shoot.bat': { 
                 url: './sounds/bat.mp3',
-                volume: 0.4 
+                volume: 0.1    // Was 0.4
             },
             'shoot.laserGun': { 
                 url: './sounds/laser.mp3',
-                volume: 0.4 
+                volume: 0.1    // Was 0.4
             },
             'shoot.rpg': { 
                 url: './sounds/rpg.mp3',
-                volume: 0.4 
+                volume: 0.1    // Was 0.4
             },
             'shoot.pistol': { 
                 url: './sounds/pistol.mp3',
-                volume: 0.4 
+                volume: 0.1    // Was 0.4
             },
             'shoot.sniper3000': { 
                 url: './sounds/sniper.mp3',
-                volume: 0.4 
+                volume: 0.1    // Was 0.4
             },
 
-            // Game effects
-            enemyHit: { 
-                url: './sounds/enemy-hit.mp3',
-                volume: 0.5 
-            },
+            // Game effects - keep these at current volume
             enemyDeath: { 
                 url: './sounds/enemy-death.mp3',
                 volume: 0.5 
@@ -614,12 +651,10 @@ class Game {
         this.shootingAnimation.frame = 0;
 
         const weapon = this.weaponShop[this.selectedWeapon];
-        // Adjust range based on weapon type
         const range = this.selectedWeapon === 'sniper3000' ? 
-            this.canvas.width : // Full screen range for sniper
-            400;               // Double the normal range for other weapons
+            this.canvas.width : 
+            400;
 
-        // Find closest enemy in front of player within range
         const enemiesInRange = this.enemies.filter(e => {
             const inFront = this.player.direction === 'right' ? 
                 e.x > this.player.x : 
@@ -633,7 +668,6 @@ class Game {
                 Math.abs(curr.x - this.player.x) < Math.abs(prev.x - this.player.x) ? curr : prev
             );
             closest.takeDamage(weapon.damage);
-            this.playSound('enemyHit');
             if (!closest.alive) {
                 this.playSound('enemyDeath');
             }
@@ -697,9 +731,6 @@ class Game {
                     if (dx < (enemy.width + this.player.width) / 2 && 
                         dy < (enemy.height + this.player.height) / 2) {
                         this.hearts--;
-                        this.playSound('playerHit');
-                        // Push enemy back slightly
-                        enemy.x += (enemy.x < this.player.x ? -50 : 50);
                         if (this.hearts <= 0) {
                             this.playSound('gameOver');
                             alert("Game Over!");
@@ -720,6 +751,16 @@ class Game {
                 this.waveInProgress = false;
                 setTimeout(() => this.startWave(), 2000);
             }
+        }
+
+        // Add touch control movement
+        if (this.touchControls.leftButton.pressed) {
+            this.player.x -= this.player.speed;
+            this.player.direction = 'left';
+        }
+        if (this.touchControls.rightButton.pressed) {
+            this.player.x += this.player.speed;
+            this.player.direction = 'right';
         }
 
         this.draw();
@@ -769,6 +810,11 @@ class Game {
             this.drawDefendMode();
         } else if (this.gameState === 'shop') {
             this.drawShop();
+        }
+
+        // Draw touch controls
+        if (this.isMobileDevice()) {
+            this.drawTouchControls();
         }
     }
 
@@ -1055,30 +1101,46 @@ class Game {
     // Update playSound method to check if audio is ready
     playSound(soundName) {
         if (!this.audioInitialized || !this.soundsEnabled || !this.sounds) {
-            console.log(`Sound not played (${soundName}): system not ready`);
+            return;
+        }
+
+        const now = Date.now();
+        const cooldown = this.soundCooldowns[soundName] || 0;
+        const lastPlayed = this.lastSoundPlayed[soundName] || 0;
+
+        // Check if sound is still in cooldown
+        if (now - lastPlayed < cooldown) {
             return;
         }
         
         try {
-            console.log(`Attempting to play sound: ${soundName}`);
             if (soundName.includes('.')) {
                 const [category, name] = soundName.split('.');
                 if (this.sounds[category]?.[name]) {
+                    // Stop any existing instances of this sound
+                    if (this.sounds[category][name].isPlaying) {
+                        this.sounds[category][name].pause();
+                        this.sounds[category][name].currentTime = 0;
+                    }
                     const sound = this.sounds[category][name].cloneNode();
                     sound.volume = this.sounds[category][name]._originalVolume;
                     sound.play()
-                        .then(() => console.log(`Playing ${category}.${name}`))
+                        .then(() => {
+                            this.lastSoundPlayed[soundName] = now;
+                        })
                         .catch(e => console.error(`Failed to play ${category}.${name}:`, e));
                 }
             } else if (this.sounds[soundName]) {
                 if (soundName.includes('Bgm') || soundName === 'radioSong') {
+                    // Background music handles differently
                     this.sounds[soundName].play()
-                        .then(() => console.log(`Playing ${soundName}`))
                         .catch(e => console.error(`Failed to play ${soundName}:`, e));
                 } else {
                     const sound = this.sounds[soundName].cloneNode();
                     sound.play()
-                        .then(() => console.log(`Playing ${soundName}`))
+                        .then(() => {
+                            this.lastSoundPlayed[soundName] = now;
+                        })
                         .catch(e => console.error(`Failed to play ${soundName}:`, e));
                 }
             }
@@ -1088,9 +1150,9 @@ class Game {
     }
 
     playWeaponSound() {
-        if (this.selectedWeapon && this.sounds.shoot[this.selectedWeapon]) {
-            const sound = this.sounds.shoot[this.selectedWeapon].cloneNode();
-            sound.play();
+        if (this.selectedWeapon) {
+            const soundName = `shoot.${this.selectedWeapon}`;
+            this.playSound(soundName);
         }
     }
 
@@ -1160,5 +1222,121 @@ class Game {
             this.player.hasWeapon = true;
             this.selectedWeapon = 'sniper3000';
         }
+    }
+
+    setupTouchControls() {
+        this.canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault(); // Prevent scrolling
+            const touches = e.touches;
+            
+            for (let i = 0; i < touches.length; i++) {
+                const touch = touches[i];
+                const rect = this.canvas.getBoundingClientRect();
+                const x = touch.clientX - rect.left;
+                const y = touch.clientY - rect.top;
+                
+                // Check which button was pressed
+                if (this.isInsideCircle(x, y, this.touchControls.leftButton)) {
+                    this.touchControls.leftButton.pressed = true;
+                }
+                if (this.isInsideCircle(x, y, this.touchControls.rightButton)) {
+                    this.touchControls.rightButton.pressed = true;
+                }
+                if (this.isInsideCircle(x, y, this.touchControls.shootButton)) {
+                    this.shoot();
+                }
+                if (this.isInsideCircle(x, y, this.touchControls.actionButton)) {
+                    this.handleAction();
+                }
+            }
+        });
+
+        this.canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            this.touchControls.leftButton.pressed = false;
+            this.touchControls.rightButton.pressed = false;
+        });
+
+        this.canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const touches = e.touches;
+            
+            // Reset buttons
+            this.touchControls.leftButton.pressed = false;
+            this.touchControls.rightButton.pressed = false;
+            
+            // Check new positions
+            for (let i = 0; i < touches.length; i++) {
+                const touch = touches[i];
+                const rect = this.canvas.getBoundingClientRect();
+                const x = touch.clientX - rect.left;
+                const y = touch.clientY - rect.top;
+                
+                if (this.isInsideCircle(x, y, this.touchControls.leftButton)) {
+                    this.touchControls.leftButton.pressed = true;
+                }
+                if (this.isInsideCircle(x, y, this.touchControls.rightButton)) {
+                    this.touchControls.rightButton.pressed = true;
+                }
+            }
+        });
+    }
+
+    isInsideCircle(x, y, circle) {
+        return Math.sqrt(
+            Math.pow(x - circle.x, 2) + 
+            Math.pow(y - circle.y, 2)
+        ) < circle.radius;
+    }
+
+    handleAction() {
+        switch(this.gameState) {
+            case 'house':
+                if (this.player.x < this.house.width) {
+                    this.gameState = 'shop';
+                }
+                break;
+            case 'shop':
+                this.purchaseWeapon();
+                break;
+            case 'defend':
+                // Any defend mode specific actions
+                break;
+        }
+    }
+
+    drawTouchControls() {
+        this.ctx.globalAlpha = 0.5;
+        
+        // Draw movement buttons
+        this.ctx.fillStyle = '#333';
+        this.ctx.beginPath();
+        this.ctx.arc(this.touchControls.leftButton.x, this.touchControls.leftButton.y, 
+            this.touchControls.leftButton.radius, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.beginPath();
+        this.ctx.arc(this.touchControls.rightButton.x, this.touchControls.rightButton.y, 
+            this.touchControls.rightButton.radius, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // Draw shoot button
+        this.ctx.fillStyle = '#f00';
+        this.ctx.beginPath();
+        this.ctx.arc(this.touchControls.shootButton.x, this.touchControls.shootButton.y, 
+            this.touchControls.shootButton.radius, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // Draw action button
+        this.ctx.fillStyle = '#0f0';
+        this.ctx.beginPath();
+        this.ctx.arc(this.touchControls.actionButton.x, this.touchControls.actionButton.y, 
+            this.touchControls.actionButton.radius, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        this.ctx.globalAlpha = 1.0;
+    }
+
+    isMobileDevice() {
+        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     }
 } 
