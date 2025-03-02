@@ -1,7 +1,7 @@
 // Main game class
 class Game {
     constructor() {
-        this.version = "v0.8.11"; // Increment version (DO NOT DELETE THIS LINE)
+        this.version = "v0.8.12"; // Increment version (DO NOT DELETE THIS LINE)
         // Add timestamp to version for absolute cache busting
         this.version += ` (${new Date().toISOString().slice(0, 19)})`;
         this.debugLog = [];      // Store debug messages
@@ -1314,68 +1314,53 @@ class Game {
             const scaleX = this.canvas.width / rect.width;
             const scaleY = this.canvas.height / rect.height;
             
+            // Reset button states first
+            this.touchControls.leftButton.pressed = false;
+            this.touchControls.rightButton.pressed = false;
+            
             if (touches.length > 0) {
                 const touch = touches[0];
-                
-                // Convert touch position directly
                 const x = (touch.clientX - rect.left) * scaleX;
                 const y = (touch.clientY - rect.top) * scaleY;
                 
+                // Debug info
                 this.debug(`Raw touch: ${Math.round(touch.clientX)},${Math.round(touch.clientY)}`);
-                this.debug(`Canvas bounds: ${Math.round(rect.left)},${Math.round(rect.top)} ${Math.round(rect.width)}x${Math.round(rect.height)}`);
-                this.debug(`Scale: ${scaleX.toFixed(2)}x${scaleY.toFixed(2)}`);
                 this.debug(`Scaled pos: ${Math.round(x)},${Math.round(y)}`);
 
-                // Debug button positions
+                // Handle menu buttons first
                 if (this.gameState === 'house') {
                     Object.entries(this.menuControls).forEach(([name, button]) => {
                         const buttonRight = button.x + button.width;
                         const buttonBottom = button.y + button.height;
                         this.debug(`${name}: (${button.x},${button.y})-(${buttonRight},${buttonBottom})`);
                         
-                        if (x >= button.x && x <= buttonRight && 
-                            y >= button.y && y <= buttonBottom) {
+                        if (x >= button.x && x <= buttonRight && y >= button.y && y <= buttonBottom) {
                             this.debug(`HIT -> ${name}`);
-                            if (name === 'shopButton') {
-                                this.gameState = 'shop';
-                                return;
+                            switch(name) {
+                                case 'shopButton':
+                                    this.gameState = 'shop';
+                                    break;
+                                case 'radioButton':
+                                    this.listenToRadio();
+                                    break;
+                                case 'defendButton':
+                                    if (this.player.hasWeapon) {
+                                        this.gameState = 'defend';
+                                        this.switchBackgroundMusic('defend');
+                                        this.startWave();
+                                    }
+                                    break;
                             }
-                            // ... other button handlers
+                            return; // Exit after handling button
                         }
                     });
-                }
-            }
-
-            // Reset button states
-            this.touchControls.leftButton.pressed = false;
-            this.touchControls.rightButton.pressed = false;
-            
-            for (let i = 0; i < touches.length; i++) {
-                const touch = touches[i];
-                // Convert touch coordinates to canvas coordinates
-                const x = (touch.clientX - rect.left) * scaleX;
-                const y = (touch.clientY - rect.top) * scaleY;
-                
-                // First check menu buttons based on game state
-                if (this.gameState === 'house') {
-                    if (this.isInsideButton(x, y, this.menuControls.shopButton)) {
-                        this.gameState = 'shop';
-                        return;
-                    } else if (this.isInsideButton(x, y, this.menuControls.radioButton)) {
-                        this.listenToRadio();
-                        return;
-                    } else if (this.isInsideButton(x, y, this.menuControls.defendButton) && this.player.hasWeapon) {
-                        this.gameState = 'defend';
-                        this.switchBackgroundMusic('defend');
-                        this.startWave();
-                        return;
-                    }
                 } else if (this.gameState === 'shop') {
+                    // Handle shop buttons
                     if (this.isInsideButton(x, y, this.menuControls.backButton)) {
                         this.gameState = 'house';
                         return;
                     }
-                    // Check weapon selection buttons
+                    // Handle weapon selection
                     let buttonY = 240;
                     Object.entries(this.weaponShop).forEach(([key, weapon], index) => {
                         if (weapon.secret && !this.oakTree.scrollFound) return;
@@ -1388,7 +1373,7 @@ class Game {
                     });
                 }
                 
-                // Then check game controls
+                // Handle game controls if no menu button was pressed
                 if (this.isInsideCircle(x, y, this.touchControls.leftButton)) {
                     this.touchControls.leftButton.pressed = true;
                 }
@@ -1401,7 +1386,7 @@ class Game {
             }
         };
 
-        // Add touch event listeners with passive: false
+        // Add touch event listeners
         ['touchstart', 'touchmove'].forEach(event => {
             this.canvas.addEventListener(event, handleTouch, { passive: false });
         });
