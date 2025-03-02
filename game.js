@@ -1,7 +1,7 @@
 // Main game class
 class Game {
     constructor() {
-        this.version = "v0.8.4"; // Increment this when making changes (DO NOT DELETE THIS LINE)
+        this.version = "v0.8.5"; // Increment this when making changes (DO NOT DELETE THIS LINE)
         this.debugLog = [];      // Store debug messages
         this.maxDebugLines = 5;  // Number of debug lines to show
 
@@ -348,6 +348,15 @@ class Game {
                 height: 60,
                 text: 'Back to House'
             }
+        };
+
+        // Add canvas scaling helper
+        this.getCanvasScaling = () => {
+            const rect = this.canvas.getBoundingClientRect();
+            return {
+                scaleX: this.canvas.width / rect.width,
+                scaleY: this.canvas.height / rect.height
+            };
         };
     }
 
@@ -1296,25 +1305,48 @@ class Game {
             
             const touches = e.touches;
             const rect = this.canvas.getBoundingClientRect();
-            const scaleX = this.canvas.width / rect.width;
-            const scaleY = this.canvas.height / rect.height;
+            
+            // Get actual canvas position and size
+            const canvasX = rect.left;
+            const canvasY = rect.top;
+            const canvasWidth = rect.width;
+            const canvasHeight = rect.height;
+            
+            // Calculate scaling factors
+            const scaleX = this.canvas.width / canvasWidth;
+            const scaleY = this.canvas.height / canvasHeight;
             
             // Debug touch coordinates and current game state
             if (touches.length > 0) {
                 const touch = touches[0];
-                const x = (touch.clientX - rect.left) * scaleX;
-                const y = (touch.clientY - rect.top) * scaleY;
-                this.debug(`Touch at: ${Math.round(x)},${Math.round(y)} (State: ${this.gameState})`);
+                // Convert touch coordinates to canvas space
+                const x = (touch.clientX - canvasX) * scaleX;
+                const y = (touch.clientY - canvasY) * scaleY;
                 
-                // Debug all button positions
+                this.debug(`Raw touch: ${touch.clientX},${touch.clientY}`);
+                this.debug(`Canvas pos: ${canvasX},${canvasY}`);
+                this.debug(`Canvas size: ${canvasWidth}x${canvasHeight}`);
+                this.debug(`Scale: ${scaleX.toFixed(2)}x${scaleY.toFixed(2)}`);
+                this.debug(`Adjusted touch: ${Math.round(x)},${Math.round(y)}`);
+                
+                // Debug all button positions in house state
                 if (this.gameState === 'house') {
                     Object.entries(this.menuControls).forEach(([name, button]) => {
-                        this.debug(`${name}: x=${button.x}-${button.x + button.width}, y=${button.y}-${button.y + button.height}`);
+                        const buttonInfo = `${name}: x=${button.x}-${button.x + button.width}, y=${button.y}-${button.y + button.height}`;
+                        this.debug(buttonInfo);
+                        
                         if (this.isInsideButton(x, y, button)) {
-                            this.debug(`HIT -> ${name}`);
+                            this.debug(`HIT -> ${name} at ${Math.round(x)},${Math.round(y)}`);
                             if (name === 'shopButton') {
-                                this.debug('Changing to shop state');
                                 this.gameState = 'shop';
+                                return;
+                            } else if (name === 'radioButton') {
+                                this.listenToRadio();
+                                return;
+                            } else if (name === 'defendButton' && this.player.hasWeapon) {
+                                this.gameState = 'defend';
+                                this.switchBackgroundMusic('defend');
+                                this.startWave();
                                 return;
                             }
                         }
@@ -1329,8 +1361,8 @@ class Game {
             for (let i = 0; i < touches.length; i++) {
                 const touch = touches[i];
                 // Convert touch coordinates to canvas coordinates
-                const x = (touch.clientX - rect.left) * scaleX;
-                const y = (touch.clientY - rect.top) * scaleY;
+                const x = (touch.clientX - canvasX) * scaleX;
+                const y = (touch.clientY - canvasY) * scaleY;
                 
                 // First check menu buttons based on game state
                 if (this.gameState === 'house') {
