@@ -1,7 +1,7 @@
 // Main game class
 class Game {
     constructor() {
-        this.version = "v0.8.1"; // Increment this when making changes
+        this.version = "v0.8.2"; // Incremented version number
         this.debugLog = [];      // Store debug messages
         this.maxDebugLines = 5;  // Number of debug lines to show
 
@@ -792,25 +792,8 @@ class Game {
             this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
             
             if (this.gameState === 'start') {
-                // Draw start screen
-                this.ctx.fillStyle = '#2c3e50';
-                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-                
-                this.ctx.fillStyle = '#ecf0f1';
-                this.ctx.font = '32px Arial';
-                this.ctx.fillText('8-Bit House Defense', this.canvas.width/2 - 150, this.canvas.height/2 - 50);
-                
-                this.ctx.font = '24px Arial';
-                this.ctx.fillText('Click anywhere to start', this.canvas.width/2 - 100, this.canvas.height/2 + 50);
-                
-                this.ctx.font = '18px Arial';
-                this.ctx.fillText('Controls: Arrow keys to move, Space to shoot', this.canvas.width/2 - 150, this.canvas.height/2 + 100);
-                this.ctx.fillText('M to mute/unmute sound', this.canvas.width/2 - 80, this.canvas.height/2 + 130);
-                
-                return;
-            }
-            
-            if (this.gameState === 'house') {
+                this.drawStartScreen();
+            } else if (this.gameState === 'house') {
                 this.drawHouse();
             } else if (this.gameState === 'defend') {
                 this.drawDefendMode();
@@ -826,7 +809,7 @@ class Game {
             // Draw version number
             this.ctx.fillStyle = '#666';
             this.ctx.font = '24px Arial';
-            this.ctx.fillText(this.version, 10, this.canvas.height - 10);
+            this.ctx.fillText(this.version, this.canvas.width - 100, this.canvas.height - 10);
 
             // Draw debug messages
             this.ctx.fillStyle = '#ff0';
@@ -837,6 +820,27 @@ class Game {
         } catch (error) {
             this.debug(`Draw error: ${error.message}`);
         }
+    }
+
+    drawStartScreen() {
+        this.ctx.fillStyle = '#2c3e50';
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        
+        this.ctx.fillStyle = '#ecf0f1';
+        this.ctx.font = '48px Arial';
+        this.ctx.fillText('Click or Touch Anywhere to Start', this.canvas.width/2 - 300, this.canvas.height/2);
+
+        // Add version number in bottom right
+        this.ctx.fillStyle = '#666';
+        this.ctx.font = '24px Arial';
+        this.ctx.fillText(this.version, this.canvas.width - 100, this.canvas.height - 10);
+
+        // Add debug messages even on start screen
+        this.ctx.fillStyle = '#ff0';
+        this.ctx.font = '20px Arial';
+        this.debugLog.forEach((msg, i) => {
+            this.ctx.fillText(msg, 10, 30 + (i * 25));
+        });
     }
 
     drawHouse() {
