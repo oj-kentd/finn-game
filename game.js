@@ -3,7 +3,7 @@ class Game {
     constructor() {
         // ----
         // (DO NOT DELETE THIS LINE)
-        this.version = "v0.9.2"; // Increment version for every update (DO NOT DELETE THIS LINE)
+        this.version = "v0.9.6"; // Increment version for every update (DO NOT DELETE THIS LINE)
         this.version += ` (${new Date().toISOString().slice(0, 19)})`;
         // ----
 
@@ -241,6 +241,53 @@ class Game {
             monster: { health: 150, damage: 2, speed: 2 },
             vampire: { health: 120, damage: 3, speed: 3 }
         };
+
+        // Add pet properties
+        this.hasPet = false;
+        this.petSprite = new Image();
+        this.petSprite.src = './sprites/pet.png';
+        this.petOffset = { x: 0, y: 0 }; // For floating animation
+        this.petTime = 0; // For animation timing
+
+        // Add secret button in house menu
+        this.secretPetButton = {
+            x: this.canvas ? this.canvas.width - 100 : 1500,
+            y: this.canvas ? this.canvas.height - 100 : 1100,
+            width: 100,
+            height: 100,
+            pressed: false
+        };
+
+        // Add mirror power-up properties
+        this.hasMirrorPower = false;
+        this.mirrorButton = {
+            x: this.canvas ? this.canvas.width/2 - 50 : 750,
+            y: 20,
+            width: 100,
+            height: 100,
+            pressed: false
+        };
+
+        // Add boss properties
+        this.boss = {
+            alive: false,
+            health: 1000,
+            maxHealth: 1000,
+            x: 0,
+            y: 0,
+            width: this.spriteConfig.width * this.spriteConfig.scale * 2, // 2x player size
+            height: this.spriteConfig.height * this.spriteConfig.scale * 2,
+            speed: 3, // Increased from 1 to 3 for better movement
+            damage: 50,
+            shootInterval: null,
+            lastShot: 0,
+            projectiles: [],
+            direction: 'left'
+        };
+
+        // Load boss sprite
+        this.bossSprite = new Image();
+        this.bossSprite.src = './sprites/boss.png';
     }
 
     startGame() {
@@ -600,12 +647,17 @@ class Game {
 
     startWave() {
         if (this.currentWave >= this.totalWaves) {
-            this.waveSet++; // Increment set counter
-            this.playSound('victory');
-            alert(`Congratulations! You've completed Set ${this.waveSet}!\nEnemies will be stronger in the next set.`);
-            this.currentWave = 0; // Reset wave counter
-            this.gameState = 'house';
-            this.switchBackgroundMusic('house');
+            if (!this.boss.alive) {
+                // Spawn boss at the end of wave 9
+                this.spawnBoss();
+            } else {
+                this.waveSet++; // Increment set counter
+                this.playSound('victory');
+                alert(`Congratulations! You've completed Set ${this.waveSet}!\nEnemies will be stronger in the next set.`);
+                this.currentWave = 0; // Reset wave counter
+                this.gameState = 'house';
+                this.switchBackgroundMusic('house');
+            }
             return;
         }
 
@@ -635,6 +687,126 @@ class Game {
         });
     }
 
+    spawnBoss() {
+        this.boss.alive = true;
+        this.boss.health = this.boss.maxHealth;
+        // Spawn boss just off the right edge of the screen
+        this.boss.x = this.canvas.width - this.boss.width;
+        this.boss.y = this.canvas.height - this.groundHeight - this.boss.height;
+        this.boss.projectiles = [];
+        
+        // Start boss shooting
+        this.boss.shootInterval = setInterval(() => {
+            if (this.boss.alive) {
+                this.bossShoots();
+            }
+        }, 2000); // Shoot every 2 seconds
+    }
+
+    bossShoots() {
+        const now = Date.now();
+        if (now - this.boss.lastShot < 2000) return; // Rate limit shots
+
+        this.boss.lastShot = now;
+        this.boss.projectiles.push({
+            x: this.boss.x,
+            y: this.boss.y + this.boss.height/2,
+            speed: 8,
+            width: 20,
+            height: 20
+        });
+    }
+
+    updateBoss() {
+        if (!this.boss.alive) return;
+
+        // Move boss from right to left
+        this.boss.x -= this.boss.speed;
+
+        // Keep boss direction facing left since it's moving left
+        this.boss.direction = 'left';
+
+        // Update projectiles
+        this.boss.projectiles = this.boss.projectiles.filter(proj => {
+            proj.x -= proj.speed;
+
+            // Check collision with player
+            if (this.checkCollision(proj, this.player)) {
+                if (this.hasMirrorPower) {
+                    // Reflect damage back to boss
+                    this.boss.health -= this.boss.damage;
+                    this.hasMirrorPower = false; // Use up mirror power
+                    if (this.boss.health <= 0) {
+                        this.boss.alive = false;
+                        clearInterval(this.boss.shootInterval);
+                        this.playSound('victory');
+                        this.waveSet++;
+                        this.currentWave = 0;
+                        this.gameState = 'house';
+                        this.switchBackgroundMusic('house');
+                    }
+                    return false;
+                } else {
+                    this.hearts -= 1;
+                    if (this.hearts <= 0) {
+                        this.gameOver();
+                    }
+                    return false;
+                }
+            }
+
+            return proj.x > 0;
+        });
+
+        // If boss moves off screen to the left, move it back to the right
+        if (this.boss.x + this.boss.width < 0) {
+            this.boss.x = this.canvas.width;
+        }
+    }
+
+    drawBoss() {
+        if (!this.boss.alive || !this.bossSprite.complete) return;
+
+        // Draw boss sprite
+        this.ctx.save();
+        if (this.boss.direction === 'left') {
+            // Flip sprite horizontally if facing left
+            this.ctx.scale(-1, 1);
+            this.ctx.drawImage(
+                this.bossSprite,
+                -this.boss.x - this.boss.width,
+                this.boss.y,
+                this.boss.width,
+                this.boss.height
+            );
+        } else {
+            this.ctx.drawImage(
+                this.bossSprite,
+                this.boss.x,
+                this.boss.y,
+                this.boss.width,
+                this.boss.height
+            );
+        }
+        this.ctx.restore();
+
+        // Draw boss health bar
+        const healthPercentage = this.boss.health / this.boss.maxHealth;
+        this.ctx.fillStyle = 'red';
+        this.ctx.fillRect(
+            this.boss.x,
+            this.boss.y - 30,
+            this.boss.width * healthPercentage,
+            10
+        );
+
+        // Draw boss projectiles
+        this.ctx.fillStyle = '#FF4444';
+        this.boss.projectiles.forEach(proj => {
+            this.ctx.fillRect(proj.x, proj.y, proj.width, proj.height);
+        });
+    }
+
     shoot() {
         if (!this.selectedWeapon) return;
         
@@ -647,6 +819,26 @@ class Game {
             this.canvas.width : 
             400;
 
+        // Check for boss hit first
+        if (this.boss.alive) {
+            const inRange = Math.abs(this.boss.x - this.player.x) < range;
+            if (inRange) {
+                const damage = this.hasPet ? this.boss.maxHealth / 5 : weapon.damage;
+                this.boss.health -= damage;
+                if (this.boss.health <= 0) {
+                    this.boss.alive = false;
+                    clearInterval(this.boss.shootInterval);
+                    this.playSound('victory');
+                    this.waveSet++;
+                    this.currentWave = 0;
+                    this.gameState = 'house';
+                    this.switchBackgroundMusic('house');
+                }
+                return;
+            }
+        }
+
+        // Check for regular enemy hits
         const enemiesInRange = this.enemies.filter(e => {
             const inFront = this.player.direction === 'right' ? 
                 e.x > this.player.x : 
@@ -659,9 +851,16 @@ class Game {
             const closest = enemiesInRange.reduce((prev, curr) => 
                 Math.abs(curr.x - this.player.x) < Math.abs(prev.x - this.player.x) ? curr : prev
             );
-            closest.takeDamage(weapon.damage);
-            if (!closest.alive) {
+            
+            if (this.hasPet) {
+                closest.health = 0;
+                closest.alive = false;
                 this.playSound('enemyDeath');
+            } else {
+                closest.takeDamage(weapon.damage);
+                if (!closest.alive) {
+                    this.playSound('enemyDeath');
+                }
             }
         }
     }
@@ -712,6 +911,9 @@ class Game {
         this.checkGamepad();
         
         if (this.gameState === 'defend' && this.waveInProgress) {
+            // Update boss
+            this.updateBoss();
+
             // Update enemies
             this.enemies.forEach(enemy => {
                 if (enemy.alive) {
@@ -732,7 +934,11 @@ class Game {
                             this.currentWave = 0;
                             this.enemies = [];
                             this.waveInProgress = false;
-                            // Reset touch controls
+                            this.boss.alive = false;
+                            if (this.boss.shootInterval) {
+                                clearInterval(this.boss.shootInterval);
+                            }
+                            this.boss.projectiles = [];
                             this.resetTouchControls();
                         }
                     }
@@ -856,8 +1062,68 @@ class Game {
         this.ctx.font = '40px Arial';
         this.ctx.fillText(`Coins: ${this.coins}`, 40, 60);
 
+        // Draw secret pet button (invisible)
+        if (this.debug) { // Only show button outline in debug mode
+            this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+            this.ctx.strokeRect(
+                this.secretPetButton.x,
+                this.secretPetButton.y,
+                this.secretPetButton.width,
+                this.secretPetButton.height
+            );
+        }
+
         // Reset text alignment
         this.ctx.textAlign = 'left';
+    }
+
+    drawPlayer(x, y, direction) {
+        // Draw player
+        if (this.playerSprite.complete) {
+            this.drawSprite(
+                this.playerSprite,
+                x,
+                y,
+                direction
+            );
+        }
+
+        // Draw pet if player has one
+        if (this.hasPet && this.petSprite.complete) {
+            // Update pet floating animation
+            this.petTime += 0.05;
+            this.petOffset.y = Math.sin(this.petTime) * 20; // Floating up and down
+            this.petOffset.x = Math.cos(this.petTime * 0.5) * 10; // Slight side to side movement
+
+            // Calculate pet position relative to player
+            const petX = direction === 'right' ? 
+                x - (this.player.width * 0.5) + this.petOffset.x : 
+                x + (this.player.width * 0.5) + this.petOffset.x;
+            const petY = y - (this.player.height * 0.2) + this.petOffset.y;
+
+            // Draw pet at 1/2 the size of player (changed from 0.33)
+            this.ctx.save();
+            const petScale = this.spriteConfig.scale * 0.5; // 1/2 of player size
+            if (direction === 'left') {
+                this.ctx.scale(-1, 1);
+                this.ctx.drawImage(
+                    this.petSprite,
+                    -petX - (this.spriteConfig.width * petScale),
+                    petY,
+                    this.spriteConfig.width * petScale,
+                    this.spriteConfig.height * petScale
+                );
+            } else {
+                this.ctx.drawImage(
+                    this.petSprite,
+                    petX,
+                    petY,
+                    this.spriteConfig.width * petScale,
+                    this.spriteConfig.height * petScale
+                );
+            }
+            this.ctx.restore();
+        }
     }
 
     drawDefendMode() {
@@ -892,15 +1158,8 @@ class Game {
         // Draw oak tree
         this.drawOakTree();
 
-        // Draw player
-        if (this.playerSprite.complete) {
-            this.drawSprite(
-                this.playerSprite,
-                this.player.x,
-                this.player.y,
-                this.player.direction
-            );
-        }
+        // Draw player with pet
+        this.drawPlayer(this.player.x, this.player.y, this.player.direction);
 
         // Draw shooting animation if active
         if (this.shootingAnimation.active) {
@@ -923,9 +1182,9 @@ class Game {
                 this.ctx.fillStyle = 'red';
                 this.ctx.fillRect(
                     enemy.x, 
-                    enemy.y - 20,  // Moved health bar up a bit
+                    enemy.y - 20,
                     this.spriteConfig.width * this.spriteConfig.scale * healthPercentage,
-                    8  // Made health bar thicker
+                    8
                 );
             }
         });
@@ -946,6 +1205,35 @@ class Game {
         if (this.selectedWeapon) {
             this.ctx.fillText(`Weapon: ${this.weaponShop[this.selectedWeapon].name}`, 40, 240);
         }
+
+        // Draw mirror button if not used
+        if (!this.hasMirrorPower) {
+            this.ctx.fillStyle = '#ADD8E6';  // Light blue
+            this.ctx.fillRect(
+                this.mirrorButton.x,
+                this.mirrorButton.y,
+                this.mirrorButton.width,
+                this.mirrorButton.height
+            );
+            this.ctx.strokeStyle = 'white';
+            this.ctx.lineWidth = 2;
+            this.ctx.strokeRect(
+                this.mirrorButton.x,
+                this.mirrorButton.y,
+                this.mirrorButton.width,
+                this.mirrorButton.height
+            );
+            this.ctx.fillStyle = 'white';
+            this.ctx.font = '20px Arial';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText('Mirror', 
+                this.mirrorButton.x + this.mirrorButton.width/2,
+                this.mirrorButton.y + this.mirrorButton.height/2
+            );
+        }
+
+        // Draw boss
+        this.drawBoss();
 
         // Draw touch controls last so they're on top
         if (this.isMobileDevice() || this.touchControls.isTouching) {
@@ -1336,13 +1624,27 @@ class Game {
                 // Handle different game states
                 switch (this.gameState) {
                     case 'house':
+                        // Check for secret pet button first
+                        if (x >= this.secretPetButton.x && 
+                            x <= this.secretPetButton.x + this.secretPetButton.width &&
+                            y >= this.secretPetButton.y && 
+                            y <= this.secretPetButton.y + this.secretPetButton.height) {
+                            if (!this.hasPet) {
+                                this.hasPet = true;
+                                this.playSound('purchase');
+                                alert("You found a pet! It will now follow you on your adventures!");
+                                return; // Exit after finding pet
+                            }
+                        }
+
+                        // Then check regular menu buttons
                         this.touchControls.menuButtons.forEach(btn => {
                             if (this.isInsideButton(x, y, btn)) {
                                 btn.pressed = true;
                                 if (btn.action === '3' && !this.player.hasWeapon) {
                                     alert("You need to buy a weapon first!");
                                     this.playSound('noMoney');
-                                    this.resetTouchControls(); // Reset after alert
+                                    this.resetTouchControls();
                                 } else {
                                     this.handleKeyPress({ key: btn.action });
                                 }
@@ -1365,6 +1667,17 @@ class Game {
                         }
                         break;
                     case 'defend':
+                        // Check for mirror button press
+                        if (!this.hasMirrorPower &&
+                            x >= this.mirrorButton.x && 
+                            x <= this.mirrorButton.x + this.mirrorButton.width &&
+                            y >= this.mirrorButton.y && 
+                            y <= this.mirrorButton.y + this.mirrorButton.height) {
+                            this.hasMirrorPower = true;
+                            this.playSound('purchase');
+                            alert("Mirror power activated! Next hit will be reflected!");
+                            return;
+                        }
                         if (this.isInsideCircle(x, y, this.touchControls.leftButton)) {
                             this.touchControls.leftButton.pressed = true;
                             this.touchControls.leftButton.lastPressed = Date.now();
@@ -1375,16 +1688,12 @@ class Game {
                         }
                         if (this.isInsideCircle(x, y, this.touchControls.shootButton)) {
                             this.touchControls.shootButton.pressed = true;
-                            // Start continuous shooting based on weapon fire rate
+                            // Start continuous shooting at 2x speed
                             if (this.selectedWeapon) {
                                 const weapon = this.weaponShop[this.selectedWeapon];
-                                const fireInterval = 1000 / weapon.fireRate; // Convert to milliseconds
+                                const fireInterval = 500 / weapon.fireRate; // Double the fire rate (half the interval)
                                 this.shoot(); // Initial shot
-                                shootInterval = setInterval(() => {
-                                    if (this.touchControls.shootButton.pressed) {
-                                        this.shoot();
-                                    }
-                                }, fireInterval);
+                                shootInterval = setInterval(() => this.shoot(), fireInterval);
                             }
                         }
                         if (this.isInsideCircle(x, y, this.touchControls.actionButton)) {
@@ -1428,7 +1737,7 @@ class Game {
             this.resetTouchControls();
         });
 
-        // Add touch cancel handler that also clears the shoot interval
+        // Add touch cancel handler
         this.canvas.addEventListener('touchcancel', (e) => {
             e.preventDefault();
             if (shootInterval) {
@@ -1553,5 +1862,29 @@ class Game {
     isMobileDevice() {
         return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
                (window.innerWidth <= 1024);
+    }
+
+    checkCollision(rect1, rect2) {
+        return rect1.x < rect2.x + rect2.width &&
+               rect1.x + rect1.width > rect2.x &&
+               rect1.y < rect2.y + rect2.height &&
+               rect1.y + rect1.height > rect2.y;
+    }
+
+    gameOver() {
+        this.playSound('gameOver');
+        alert("Game Over!");
+        this.gameState = 'house';
+        this.switchBackgroundMusic('house');
+        this.hearts = 15;
+        this.currentWave = 0;
+        this.enemies = [];
+        this.waveInProgress = false;
+        this.boss.alive = false;
+        if (this.boss.shootInterval) {
+            clearInterval(this.boss.shootInterval);
+        }
+        this.boss.projectiles = [];
+        this.resetTouchControls();
     }
 } 
