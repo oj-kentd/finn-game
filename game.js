@@ -122,12 +122,19 @@ class Game {
             maxFrames: 10
         };
 
-        // Add click handler for initial interaction
-        this.canvas.addEventListener('click', () => {
+        // Update click handler to work with both touch and click
+        const startGame = () => {
             if (this.gameState === 'start') {
                 this.initializeAudio();
+                // Remove both event listeners after game starts
+                this.canvas.removeEventListener('click', startGame);
+                this.canvas.removeEventListener('touchstart', startGame);
             }
-        });
+        };
+
+        // Add both click and touch handlers
+        this.canvas.addEventListener('click', startGame);
+        this.canvas.addEventListener('touchstart', startGame);
 
         // Don't initialize audio yet, just load the configurations
         this.soundConfigs = {
@@ -283,98 +290,34 @@ class Game {
 
     initializeAudio() {
         console.log('Initializing audio system...');
+        
+        // For iOS/Safari, we need to enable audio on user interaction
+        try {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!this.audioContext) {
+                this.audioContext = new AudioContext();
+            }
+            // Resume audio context for iOS
+            if (this.audioContext.state === 'suspended') {
+                this.audioContext.resume();
+            }
+            console.log('Audio context created successfully');
+        } catch (e) {
+            console.error('WebAudio not supported:', e);
+        }
+
+        // Change game state immediately
+        this.gameState = 'house';
+        
+        // Rest of audio initialization...
         this.sounds = {};
         this.soundsToLoad = 0;
         this.soundsLoaded = 0;
         this.audioInitialized = false;
         this.soundsEnabled = true;
 
-        // Test audio context availability
-        try {
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            this.audioContext = new AudioContext();
-            console.log('Audio context created successfully');
-        } catch (e) {
-            console.error('WebAudio not supported:', e);
-        }
-
-        // Updated sound configuration with local paths
-        const soundConfigs = {
-            // Background music - reduced to 30% of original volume
-            houseBgm: { 
-                url: './sounds/house.mp3',
-                volume: 0.15,  // Was 0.3
-                loop: true 
-            },
-            defendBgm: { 
-                url: './sounds/defend.mp3',
-                volume: 0.15,  // Was 0.3
-                loop: true 
-            },
-            radioSong: {
-                url: './sounds/radio.mp3',
-                volume: 0.25   // Was 0.5
-            },
-
-            // Weapon sounds - reduced to 25% of original volume
-            'shoot.minigun': { 
-                url: './sounds/minigun.mp3',
-                volume: 0.1    // Was 0.4
-            },
-            'shoot.bat': { 
-                url: './sounds/bat.mp3',
-                volume: 0.1    // Was 0.4
-            },
-            'shoot.laserGun': { 
-                url: './sounds/laser.mp3',
-                volume: 0.1    // Was 0.4
-            },
-            'shoot.rpg': { 
-                url: './sounds/rpg.mp3',
-                volume: 0.1    // Was 0.4
-            },
-            'shoot.pistol': { 
-                url: './sounds/pistol.mp3',
-                volume: 0.1    // Was 0.4
-            },
-            'shoot.sniper3000': { 
-                url: './sounds/sniper.mp3',
-                volume: 0.1    // Was 0.4
-            },
-
-            // Game effects - keep these at current volume
-            enemyDeath: { 
-                url: './sounds/enemy-death.mp3',
-                volume: 0.5 
-            },
-            playerHit: { 
-                url: './sounds/player-hit.mp3',
-                volume: 0.5 
-            },
-            purchase: { 
-                url: './sounds/purchase.mp3',
-                volume: 0.5 
-            },
-            noMoney: { 
-                url: './sounds/no-money.mp3',
-                volume: 0.5 
-            },
-            waveStart: { 
-                url: './sounds/wave-start.mp3',
-                volume: 0.5 
-            },
-            victory: { 
-                url: './sounds/victory.mp3',
-                volume: 0.6 
-            },
-            gameOver: { 
-                url: './sounds/game-over.mp3',
-                volume: 0.6 
-            }
-        };
-
-        // Initialize with all sounds
-        this.initSounds(soundConfigs);
+        // Initialize with sound configs...
+        this.initSounds(this.soundConfigs);
     }
 
     initSounds(soundConfigs) {
