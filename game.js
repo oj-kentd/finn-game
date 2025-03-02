@@ -1256,7 +1256,39 @@ class Game {
                 const x = (touch.clientX - rect.left) * scaleX;
                 const y = (touch.clientY - rect.top) * scaleY;
                 
-                // Check each button
+                // First check menu buttons based on game state
+                if (this.gameState === 'house') {
+                    if (this.isInsideButton(x, y, this.menuControls.shopButton)) {
+                        this.gameState = 'shop';
+                        return;
+                    } else if (this.isInsideButton(x, y, this.menuControls.radioButton)) {
+                        this.listenToRadio();
+                        return;
+                    } else if (this.isInsideButton(x, y, this.menuControls.defendButton) && this.player.hasWeapon) {
+                        this.gameState = 'defend';
+                        this.switchBackgroundMusic('defend');
+                        this.startWave();
+                        return;
+                    }
+                } else if (this.gameState === 'shop') {
+                    if (this.isInsideButton(x, y, this.menuControls.backButton)) {
+                        this.gameState = 'house';
+                        return;
+                    }
+                    // Check weapon selection buttons
+                    let buttonY = 240;
+                    Object.entries(this.weaponShop).forEach(([key, weapon], index) => {
+                        if (weapon.secret && !this.oakTree.scrollFound) return;
+                        if (y >= buttonY - 40 && y <= buttonY + 20 && x >= 100 && x <= this.canvas.width - 200) {
+                            this.shopSelection = index;
+                            this.purchaseSelectedWeapon();
+                            return;
+                        }
+                        buttonY += 100;
+                    });
+                }
+                
+                // Then check game controls
                 if (this.isInsideCircle(x, y, this.touchControls.leftButton)) {
                     this.touchControls.leftButton.pressed = true;
                 }
@@ -1265,9 +1297,6 @@ class Game {
                 }
                 if (this.isInsideCircle(x, y, this.touchControls.shootButton)) {
                     this.shoot();
-                }
-                if (this.isInsideCircle(x, y, this.touchControls.actionButton)) {
-                    this.handleAction();
                 }
             }
         };
@@ -1292,44 +1321,7 @@ class Game {
     }
 
     handleAction() {
-        switch(this.gameState) {
-            case 'house':
-                // Check menu button touches
-                const rect = this.canvas.getBoundingClientRect();
-                const scaleX = this.canvas.width / rect.width;
-                const scaleY = this.canvas.height / rect.height;
-                const x = event.touches[0].clientX * scaleX;
-                const y = event.touches[0].clientY * scaleY;
-
-                if (this.isInsideButton(x, y, this.menuControls.shopButton)) {
-                    this.gameState = 'shop';
-                } else if (this.isInsideButton(x, y, this.menuControls.radioButton)) {
-                    this.listenToRadio();
-                } else if (this.isInsideButton(x, y, this.menuControls.defendButton) && this.player.hasWeapon) {
-                    this.gameState = 'defend';
-                    this.switchBackgroundMusic('defend');
-                    this.startWave();
-                }
-                break;
-            case 'shop':
-                // Handle shop touch controls
-                if (this.isInsideButton(x, y, this.menuControls.backButton)) {
-                    this.gameState = 'house';
-                } else {
-                    this.purchaseSelectedWeapon();
-                }
-                break;
-            case 'defend':
-                // Existing defend mode actions
-                break;
-        }
-    }
-
-    isInsideButton(x, y, button) {
-        return x > button.x && 
-               x < button.x + button.width && 
-               y > button.y && 
-               y < button.y + button.height;
+        // This method is no longer needed
     }
 
     drawTouchControls() {
