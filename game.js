@@ -1,6 +1,25 @@
 // Main game class
 class Game {
     constructor() {
+        // ----
+        // (DO NOT DELETE THIS LINE)
+        this.version = "v0.9.1"; // Increment version for every update (DO NOT DELETE THIS LINE)
+        this.version += ` (${new Date().toISOString().slice(0, 19)})`;
+        // ----
+
+        // Add timestamp to version for absolute cache busting
+        this.debugLog = [];      // Store debug messages
+        this.maxDebugLines = 20;  // Number of debug lines to show
+
+        // Add debug helper method
+        this.debug = (message) => {
+            console.log(message);
+            this.debugLog.unshift(new Date().toLocaleTimeString() + ': ' + message);
+            if (this.debugLog.length > this.maxDebugLines) {
+                this.debugLog.pop();
+            }
+        };
+
         this.canvas = document.querySelector('canvas');
         this.ctx = this.canvas.getContext('2d');
         this.gameState = 'start'; // house, story, defend, start
@@ -223,35 +242,24 @@ class Game {
             scrollFound: false
         };
 
-        // Add touch control properties
+        // Touch controls configuration
         this.touchControls = {
-            leftButton: {
-                x: 50,
-                y: this.canvas.height - 150,
-                radius: 40,
-                pressed: false
-            },
-            rightButton: {
-                x: 150,
-                y: this.canvas.height - 150,
-                radius: 40,
-                pressed: false
-            },
-            shootButton: {
-                x: this.canvas.width - 100,
-                y: this.canvas.height - 150,
-                radius: 50,
-                pressed: false
-            },
-            actionButton: {
-                x: this.canvas.width - 200,
-                y: this.canvas.height - 150,
-                radius: 40,
-                pressed: false
-            }
+            leftButton: { x: 100, y: this.canvas.height - 100, radius: 50, pressed: false },
+            rightButton: { x: 250, y: this.canvas.height - 100, radius: 50, pressed: false },
+            shootButton: { x: this.canvas.width - 150, y: this.canvas.height - 100, radius: 50, pressed: false },
+            actionButton: { x: this.canvas.width - 300, y: this.canvas.height - 100, radius: 50, pressed: false },
+            menuButtons: [
+                { x: 100, y: 200, width: 200, height: 60, text: 'Shop (1)', action: '1' },
+                { x: 100, y: 300, width: 200, height: 60, text: 'Radio (2)', action: '2' },
+                { x: 100, y: 400, width: 200, height: 60, text: 'Start Wave (3)', action: '3' }
+            ],
+            shopButtons: [], // Will be populated in setupShop
+            isTouching: false,
+            lastTouchX: 0,
+            lastTouchY: 0
         };
 
-        // Add touch event listeners
+        // Setup touch controls
         this.setupTouchControls();
 
         // Add sound cooldown system
@@ -813,9 +821,7 @@ class Game {
         }
 
         // Draw touch controls
-        if (this.isMobileDevice()) {
-            this.drawTouchControls();
-        }
+        this.drawTouchControls();
     }
 
     drawHouse() {
@@ -1226,33 +1232,70 @@ class Game {
 
     setupTouchControls() {
         this.canvas.addEventListener('touchstart', (e) => {
-            e.preventDefault(); // Prevent scrolling
+            e.preventDefault();
             const touches = e.touches;
+            this.touchControls.isTouching = true;
             
             for (let i = 0; i < touches.length; i++) {
                 const touch = touches[i];
                 const rect = this.canvas.getBoundingClientRect();
-                const x = touch.clientX - rect.left;
-                const y = touch.clientY - rect.top;
+                const scale = this.canvas.width / rect.width;
+                const x = (touch.clientX - rect.left) * scale;
+                const y = (touch.clientY - rect.top) * scale;
                 
-                // Check which button was pressed
-                if (this.isInsideCircle(x, y, this.touchControls.leftButton)) {
-                    this.touchControls.leftButton.pressed = true;
-                }
-                if (this.isInsideCircle(x, y, this.touchControls.rightButton)) {
-                    this.touchControls.rightButton.pressed = true;
-                }
-                if (this.isInsideCircle(x, y, this.touchControls.shootButton)) {
-                    this.shoot();
-                }
-                if (this.isInsideCircle(x, y, this.touchControls.actionButton)) {
-                    this.handleAction();
+                this.touchControls.lastTouchX = x;
+                this.touchControls.lastTouchY = y;
+
+                // Handle different game states
+                switch (this.gameState) {
+                    case 'start':
+                        if (y > this.canvas.height / 2) {
+                            this.startGame();
+                        }
+                        break;
+                    case 'house':
+                        // Check menu buttons
+                        for (const btn of this.touchControls.menuButtons) {
+                            if (this.isInsideButton(x, y, btn)) {
+                                this.handleKeyPress({ key: btn.action });
+                            }
+                        }
+                        break;
+                    case 'shop':
+                        // Handle shop selections
+                        const itemHeight = 60;
+                        const startY = 200;
+                        const weapons = Object.keys(this.weaponShop);
+                        const touchedIndex = Math.floor((y - startY) / itemHeight);
+                        if (touchedIndex >= 0 && touchedIndex < weapons.length) {
+                            this.shopSelection = touchedIndex;
+                            if (x > this.canvas.width / 2) {
+                                this.handleKeyPress({ key: 'Enter' });
+                            }
+                        }
+                        break;
+                    case 'defend':
+                        // Movement and action buttons
+                        if (this.isInsideCircle(x, y, this.touchControls.leftButton)) {
+                            this.touchControls.leftButton.pressed = true;
+                        }
+                        if (this.isInsideCircle(x, y, this.touchControls.rightButton)) {
+                            this.touchControls.rightButton.pressed = true;
+                        }
+                        if (this.isInsideCircle(x, y, this.touchControls.shootButton)) {
+                            this.shoot();
+                        }
+                        if (this.isInsideCircle(x, y, this.touchControls.actionButton)) {
+                            this.handleKeyPress({ key: 'Escape' });
+                        }
+                        break;
                 }
             }
         });
 
         this.canvas.addEventListener('touchend', (e) => {
             e.preventDefault();
+            this.touchControls.isTouching = false;
             this.touchControls.leftButton.pressed = false;
             this.touchControls.rightButton.pressed = false;
         });
@@ -1261,77 +1304,76 @@ class Game {
             e.preventDefault();
             const touches = e.touches;
             
-            // Reset buttons
-            this.touchControls.leftButton.pressed = false;
-            this.touchControls.rightButton.pressed = false;
-            
-            // Check new positions
             for (let i = 0; i < touches.length; i++) {
                 const touch = touches[i];
                 const rect = this.canvas.getBoundingClientRect();
-                const x = touch.clientX - rect.left;
-                const y = touch.clientY - rect.top;
+                const scale = this.canvas.width / rect.width;
+                const x = (touch.clientX - rect.left) * scale;
+                const y = (touch.clientY - rect.top) * scale;
                 
-                if (this.isInsideCircle(x, y, this.touchControls.leftButton)) {
-                    this.touchControls.leftButton.pressed = true;
-                }
-                if (this.isInsideCircle(x, y, this.touchControls.rightButton)) {
-                    this.touchControls.rightButton.pressed = true;
+                this.touchControls.lastTouchX = x;
+                this.touchControls.lastTouchY = y;
+
+                if (this.gameState === 'defend') {
+                    this.touchControls.leftButton.pressed = this.isInsideCircle(x, y, this.touchControls.leftButton);
+                    this.touchControls.rightButton.pressed = this.isInsideCircle(x, y, this.touchControls.rightButton);
                 }
             }
         });
     }
 
-    isInsideCircle(x, y, circle) {
-        return Math.sqrt(
-            Math.pow(x - circle.x, 2) + 
-            Math.pow(y - circle.y, 2)
-        ) < circle.radius;
-    }
-
-    handleAction() {
-        switch(this.gameState) {
-            case 'house':
-                if (this.player.x < this.house.width) {
-                    this.gameState = 'shop';
-                }
-                break;
-            case 'shop':
-                this.purchaseWeapon();
-                break;
-            case 'defend':
-                // Any defend mode specific actions
-                break;
-        }
+    isInsideButton(x, y, button) {
+        return x >= button.x && x <= button.x + button.width &&
+               y >= button.y && y <= button.y + button.height;
     }
 
     drawTouchControls() {
+        if (!this.touchControls.isTouching && window.innerWidth >= 1024) {
+            return; // Don't draw touch controls on desktop/large screens unless actively touching
+        }
+
         this.ctx.globalAlpha = 0.5;
         
-        // Draw movement buttons
-        this.ctx.fillStyle = '#333';
-        this.ctx.beginPath();
-        this.ctx.arc(this.touchControls.leftButton.x, this.touchControls.leftButton.y, 
-            this.touchControls.leftButton.radius, 0, Math.PI * 2);
-        this.ctx.fill();
-        this.ctx.beginPath();
-        this.ctx.arc(this.touchControls.rightButton.x, this.touchControls.rightButton.y, 
-            this.touchControls.rightButton.radius, 0, Math.PI * 2);
-        this.ctx.fill();
+        // Draw controls based on game state
+        switch (this.gameState) {
+            case 'defend':
+                // Movement buttons
+                this.ctx.fillStyle = this.touchControls.leftButton.pressed ? '#666' : '#333';
+                this.ctx.beginPath();
+                this.ctx.arc(this.touchControls.leftButton.x, this.touchControls.leftButton.y, 
+                            this.touchControls.leftButton.radius, 0, Math.PI * 2);
+                this.ctx.fill();
+                this.ctx.fillStyle = this.touchControls.rightButton.pressed ? '#666' : '#333';
+                this.ctx.beginPath();
+                this.ctx.arc(this.touchControls.rightButton.x, this.touchControls.rightButton.y, 
+                            this.touchControls.rightButton.radius, 0, Math.PI * 2);
+                this.ctx.fill();
 
-        // Draw shoot button
-        this.ctx.fillStyle = '#f00';
-        this.ctx.beginPath();
-        this.ctx.arc(this.touchControls.shootButton.x, this.touchControls.shootButton.y, 
-            this.touchControls.shootButton.radius, 0, Math.PI * 2);
-        this.ctx.fill();
+                // Action buttons
+                this.ctx.fillStyle = '#f00';
+                this.ctx.beginPath();
+                this.ctx.arc(this.touchControls.shootButton.x, this.touchControls.shootButton.y, 
+                            this.touchControls.shootButton.radius, 0, Math.PI * 2);
+                this.ctx.fill();
+                this.ctx.fillStyle = '#0f0';
+                this.ctx.beginPath();
+                this.ctx.arc(this.touchControls.actionButton.x, this.touchControls.actionButton.y, 
+                            this.touchControls.actionButton.radius, 0, Math.PI * 2);
+                this.ctx.fill();
+                break;
 
-        // Draw action button
-        this.ctx.fillStyle = '#0f0';
-        this.ctx.beginPath();
-        this.ctx.arc(this.touchControls.actionButton.x, this.touchControls.actionButton.y, 
-            this.touchControls.actionButton.radius, 0, Math.PI * 2);
-        this.ctx.fill();
+            case 'house':
+                // Menu buttons
+                this.touchControls.menuButtons.forEach(btn => {
+                    this.ctx.fillStyle = '#333';
+                    this.ctx.fillRect(btn.x, btn.y, btn.width, btn.height);
+                    this.ctx.fillStyle = '#fff';
+                    this.ctx.font = '20px Arial';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.fillText(btn.text, btn.x + btn.width/2, btn.y + btn.height/2 + 8);
+                });
+                break;
+        }
 
         this.ctx.globalAlpha = 1.0;
     }
