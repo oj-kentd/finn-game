@@ -1,7 +1,7 @@
 // Main game class
 class Game {
     constructor() {
-        this.version = "v0.8.9"; // Increment version (DO NOT DELETE THIS LINE)
+        this.version = "v0.8.10"; // Increment version (DO NOT DELETE THIS LINE)
         // Add timestamp to version for absolute cache busting
         this.version += ` (${new Date().toISOString().slice(0, 19)})`;
         this.debugLog = [];      // Store debug messages
@@ -352,13 +352,14 @@ class Game {
             }
         };
 
-        // Add canvas scaling helper
-        this.getCanvasScaling = () => {
+        // Add uniform scaling helper
+        this.getUniformScale = () => {
             const rect = this.canvas.getBoundingClientRect();
-            return {
-                scaleX: this.canvas.width / rect.width,
-                scaleY: this.canvas.height / rect.height
-            };
+            // Use the smaller scale to maintain aspect ratio
+            return Math.min(
+                this.canvas.width / rect.width,
+                this.canvas.height / rect.height
+            );
         };
     }
 
@@ -1312,34 +1313,36 @@ class Game {
             // Get actual canvas position and dimensions
             const canvasX = rect.left;
             const canvasY = rect.top;
-            const displayWidth = rect.width;
-            const displayHeight = rect.height;
             
-            // Calculate scaling based on display vs actual canvas size
-            const scaleX = this.canvas.width / displayWidth;
-            const scaleY = this.canvas.height / displayHeight;
+            // Use uniform scaling
+            const scale = this.getUniformScale();
+            
+            // Calculate canvas center offset for proper positioning
+            const canvasCenterX = (this.canvas.width - (rect.width * scale)) / 2;
+            const canvasCenterY = (this.canvas.height - (rect.height * scale)) / 2;
             
             if (touches.length > 0) {
                 const touch = touches[0];
-                // Convert touch position to canvas coordinates
-                const touchX = touch.clientX - canvasX;  // Position relative to canvas
+                // Convert touch position using uniform scaling
+                const touchX = touch.clientX - canvasX;
                 const touchY = touch.clientY - canvasY;
                 
-                // Scale the position
-                const x = touchX * scaleX;
-                const y = touchY * scaleY;
+                // Apply uniform scale and center offset
+                const x = (touchX * scale) + canvasCenterX;
+                const y = (touchY * scale) + canvasCenterY;
                 
                 this.debug(`Raw touch: ${Math.round(touch.clientX)},${Math.round(touch.clientY)}`);
                 this.debug(`Canvas offset: ${Math.round(canvasX)},${Math.round(canvasY)}`);
-                this.debug(`Touch relative: ${Math.round(touchX)},${Math.round(touchY)}`);
-                this.debug(`Canvas display: ${Math.round(displayWidth)}x${Math.round(displayHeight)}`);
+                this.debug(`Touch relative: ${Math.round(touchX)} ${Math.round(touchY)}`);
+                this.debug(`Canvas display: ${Math.round(rect.width)}x${Math.round(rect.height)}`);
                 this.debug(`Canvas actual: ${this.canvas.width}x${this.canvas.height}`);
-                this.debug(`Scale: ${scaleX.toFixed(2)}x${scaleY.toFixed(2)}`);
-                this.debug(`Final pos: ${Math.round(x)},${Math.round(y)}`);
+                this.debug(`Uniform scale: ${scale.toFixed(2)}`);
+                this.debug(`Final pos: ${Math.round(x)} ${Math.round(y)}`);
 
                 // Debug button positions
                 if (this.gameState === 'house') {
                     Object.entries(this.menuControls).forEach(([name, button]) => {
+                        this.debug(`${name} button: ${button.x},${button.y} (${button.width}x${button.height})`);
                         if (this.isInsideButton(x, y, button)) {
                             this.debug(`HIT -> ${name}`);
                             if (name === 'shopButton') {
@@ -1366,8 +1369,8 @@ class Game {
             for (let i = 0; i < touches.length; i++) {
                 const touch = touches[i];
                 // Convert touch coordinates to canvas coordinates
-                const x = (touch.clientX - canvasX) * scaleX;
-                const y = (touch.clientY - canvasY) * scaleY;
+                const x = (touch.clientX - canvasX) * scale;
+                const y = (touch.clientY - canvasY) * scale;
                 
                 // First check menu buttons based on game state
                 if (this.gameState === 'house') {
