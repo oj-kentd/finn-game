@@ -851,22 +851,31 @@ class Game {
         this.ctx.font = '40px Arial';  // Was 20px
         this.ctx.fillText(`Coins: ${this.coins}`, 40, 60);
 
-        // Draw menu buttons
+        // Draw menu buttons with debug outlines
         this.ctx.fillStyle = '#4a6fa5';
         this.ctx.globalAlpha = 0.8;
 
-        Object.values(this.menuControls).forEach(button => {
+        Object.entries(this.menuControls).forEach(([name, button]) => {
             if (button === this.menuControls.defendButton && !this.player.hasWeapon) {
-                return; // Don't draw defend button if no weapon
+                return;
             }
             if (button === this.menuControls.backButton) {
-                return; // Don't draw back button in house
+                return;
             }
 
+            // Draw button background
             this.ctx.fillRect(button.x, button.y, button.width, button.height);
+            
+            // Draw button text
             this.ctx.fillStyle = 'white';
             this.ctx.font = '32px Arial';
             this.ctx.fillText(button.text, button.x + 20, button.y + 40);
+            
+            // Draw debug outline
+            this.ctx.strokeStyle = '#ff0';
+            this.ctx.lineWidth = 2;
+            this.ctx.strokeRect(button.x, button.y, button.width, button.height);
+            
             this.ctx.fillStyle = '#4a6fa5';
         });
 
@@ -1285,12 +1294,21 @@ class Game {
             const scaleX = this.canvas.width / rect.width;
             const scaleY = this.canvas.height / rect.height;
             
-            // Debug touch coordinates
+            // Debug touch coordinates and current game state
             if (touches.length > 0) {
                 const touch = touches[0];
                 const x = (touch.clientX - rect.left) * scaleX;
                 const y = (touch.clientY - rect.top) * scaleY;
-                this.debug(`Touch at: ${Math.round(x)},${Math.round(y)}`);
+                this.debug(`Touch at: ${Math.round(x)},${Math.round(y)} (State: ${this.gameState})`);
+                
+                // Debug button positions
+                if (this.gameState === 'house') {
+                    Object.entries(this.menuControls).forEach(([name, button]) => {
+                        if (this.isInsideButton(x, y, button)) {
+                            this.debug(`Activating ${name}`);
+                        }
+                    });
+                }
             }
 
             // Reset button states
@@ -1448,5 +1466,17 @@ class Game {
         source.connect(audioContext.destination);
         source.start(0);
         return audioContext;
+    }
+
+    isInsideButton(x, y, button) {
+        const inside = x >= button.x && 
+               x <= button.x + button.width && 
+               y >= button.y && 
+               y <= button.y + button.height;
+        
+        if (inside) {
+            this.debug(`Button hit: ${button.text}`);
+        }
+        return inside;
     }
 } 
