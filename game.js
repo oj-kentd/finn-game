@@ -122,19 +122,49 @@ class Game {
             maxFrames: 10
         };
 
-        // Update click handler to work with both touch and click
-        const startGame = () => {
+        // Update start screen interaction
+        const startGame = async (e) => {
+            e.preventDefault(); // Prevent default behavior
             if (this.gameState === 'start') {
-                this.initializeAudio();
-                // Remove both event listeners after game starts
-                this.canvas.removeEventListener('click', startGame);
-                this.canvas.removeEventListener('touchstart', startGame);
+                try {
+                    // Create audio context immediately on user interaction
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.audioContext = new AudioContext();
+                    
+                    // Force unlock audio on iOS/Safari
+                    if (this.audioContext.state === 'suspended') {
+                        await this.audioContext.resume();
+                    }
+                    
+                    // Create and play a silent sound to unlock audio
+                    const silentBuffer = this.audioContext.createBuffer(1, 1, 22050);
+                    const source = this.audioContext.createBufferSource();
+                    source.buffer = silentBuffer;
+                    source.connect(this.audioContext.destination);
+                    source.start();
+
+                    // Initialize audio system
+                    this.initializeAudio();
+                    
+                    // Change game state
+                    this.gameState = 'house';
+                    
+                    // Remove event listeners
+                    this.canvas.removeEventListener('touchstart', startGame);
+                    this.canvas.removeEventListener('touchend', startGame);
+                    this.canvas.removeEventListener('click', startGame);
+                } catch (error) {
+                    console.error('Error starting game:', error);
+                    // Fallback - proceed without audio
+                    this.gameState = 'house';
+                }
             }
         };
 
-        // Add both click and touch handlers
-        this.canvas.addEventListener('click', startGame);
+        // Add multiple event listeners for iOS/Safari
         this.canvas.addEventListener('touchstart', startGame);
+        this.canvas.addEventListener('touchend', startGame);
+        this.canvas.addEventListener('click', startGame);
 
         // Don't initialize audio yet, just load the configurations
         this.soundConfigs = {
@@ -291,32 +321,13 @@ class Game {
     initializeAudio() {
         console.log('Initializing audio system...');
         
-        // For iOS/Safari, we need to enable audio on user interaction
-        try {
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            if (!this.audioContext) {
-                this.audioContext = new AudioContext();
-            }
-            // Resume audio context for iOS
-            if (this.audioContext.state === 'suspended') {
-                this.audioContext.resume();
-            }
-            console.log('Audio context created successfully');
-        } catch (e) {
-            console.error('WebAudio not supported:', e);
-        }
-
-        // Change game state immediately
-        this.gameState = 'house';
-        
-        // Rest of audio initialization...
         this.sounds = {};
         this.soundsToLoad = 0;
         this.soundsLoaded = 0;
         this.audioInitialized = false;
         this.soundsEnabled = true;
 
-        // Initialize with sound configs...
+        // Initialize with sound configs
         this.initSounds(this.soundConfigs);
     }
 
