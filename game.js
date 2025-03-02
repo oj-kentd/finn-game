@@ -1,7 +1,7 @@
 // Main game class
 class Game {
     constructor() {
-        this.version = "v0.8.5"; // Increment this when making changes (DO NOT DELETE THIS LINE)
+        this.version = "v0.8.6"; // Increment this when making changes (DO NOT DELETE THIS LINE)
         this.debugLog = [];      // Store debug messages
         this.maxDebugLines = 5;  // Number of debug lines to show
 
