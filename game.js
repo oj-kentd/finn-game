@@ -3,7 +3,7 @@ class Game {
     constructor() {
         // ----
         // (DO NOT DELETE THIS LINE)
-        this.version = "v0.9.8"; // Increment version for every update (DO NOT DELETE THIS LINE)
+        this.version = "v0.9.9"; // Increment version for every update (DO NOT DELETE THIS LINE)
         this.version += ` (${new Date().toISOString().slice(0, 19)})`;
         // ----
 
@@ -232,9 +232,6 @@ class Game {
         
         // Track last play time for each sound
         this.lastSoundPlayed = {};
-        
-        // Track active sound instances
-        this.activeSounds = {};
 
         // Update enemy base stats for better scaling
         this.enemyBaseStats = {
@@ -1481,7 +1478,7 @@ class Game {
         }
     }
 
-    // Updated playSound method to prevent overlapping sounds
+    // Update playSound method to check if audio is ready
     playSound(soundName) {
         if (!this.audioInitialized || !this.soundsEnabled || !this.sounds) {
             return;
@@ -1500,34 +1497,18 @@ class Game {
             if (soundName.includes('.')) {
                 const [category, name] = soundName.split('.');
                 if (this.sounds[category]?.[name]) {
-                    // For weapon sounds, ensure previous instance is done before playing again
-                    if (category === 'shoot' && this.activeSounds[soundName]) {
-                        // If it's still playing, don't start a new sound
-                        if (!this.activeSounds[soundName].ended) {
-                            return;
-                        }
+                    // Stop any existing instances of this sound
+                    if (this.sounds[category][name].isPlaying) {
+                        this.sounds[category][name].pause();
+                        this.sounds[category][name].currentTime = 0;
                     }
-                    
-                    // Create a new sound instance
                     const sound = this.sounds[category][name].cloneNode();
                     sound.volume = this.sounds[category][name]._originalVolume;
-                    
-                    // Store the active sound instance
-                    this.activeSounds[soundName] = sound;
-                    
-                    // Add event listener to clean up after playback ends
-                    sound.addEventListener('ended', () => {
-                        delete this.activeSounds[soundName];
-                    }, { once: true });
-                    
                     sound.play()
                         .then(() => {
                             this.lastSoundPlayed[soundName] = now;
                         })
-                        .catch(e => {
-                            console.error(`Failed to play ${category}.${name}:`, e);
-                            delete this.activeSounds[soundName];
-                        });
+                        .catch(e => console.error(`Failed to play ${category}.${name}:`, e));
                 }
             } else if (this.sounds[soundName]) {
                 if (soundName.includes('Bgm') || soundName === 'radioSong') {
@@ -1535,28 +1516,12 @@ class Game {
                     this.sounds[soundName].play()
                         .catch(e => console.error(`Failed to play ${soundName}:`, e));
                 } else {
-                    // For other sound effects
-                    if (this.activeSounds[soundName] && !this.activeSounds[soundName].ended) {
-                        // If the sound is still playing, don't start a new one
-                        return;
-                    }
-                    
                     const sound = this.sounds[soundName].cloneNode();
-                    this.activeSounds[soundName] = sound;
-                    
-                    // Clean up after playback ends
-                    sound.addEventListener('ended', () => {
-                        delete this.activeSounds[soundName];
-                    }, { once: true });
-                    
                     sound.play()
                         .then(() => {
                             this.lastSoundPlayed[soundName] = now;
                         })
-                        .catch(e => {
-                            console.error(`Failed to play ${soundName}:`, e);
-                            delete this.activeSounds[soundName];
-                        });
+                        .catch(e => console.error(`Failed to play ${soundName}:`, e));
                 }
             }
         } catch (error) {
@@ -1564,13 +1529,11 @@ class Game {
         }
     }
 
-    // Updated weapon sound method to handle weapon-specific sound behavior
     playWeaponSound() {
-        if (!this.selectedWeapon) return;
-        
-        const soundName = `shoot.${this.selectedWeapon}`;
-        // Play sound with non-overlapping behavior
-        this.playSound(soundName);
+        if (this.selectedWeapon) {
+            const soundName = `shoot.${this.selectedWeapon}`;
+            this.playSound(soundName);
+        }
     }
 
     drawOakTree() {
@@ -1943,19 +1906,6 @@ class Game {
     }
 
     gameOver() {
-        // Stop all active sounds first
-        Object.values(this.activeSounds).forEach(sound => {
-            try {
-                if (sound && typeof sound.pause === 'function') {
-                    sound.pause();
-                    sound.currentTime = 0;
-                }
-            } catch (e) {
-                console.error('Error stopping sound:', e);
-            }
-        });
-        this.activeSounds = {};
-        
         this.playSound('gameOver');
         alert("Game Over!");
         this.gameState = 'house';
