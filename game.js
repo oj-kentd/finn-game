@@ -23,7 +23,7 @@ class Game {
 
         // Load player sprite
         this.playerSprite = new Image();
-        this.playerSprite.src = './player.png';  // Green character sprite
+        this.playerSprite.src = './sprites/player.png';  // Green character sprite
 
         const groundHeight = 200;  // Define ground height as a class property
         this.groundHeight = groundHeight;
@@ -81,27 +81,27 @@ class Game {
         // Simplify enemy sprite configurations to use direct sprites
         this.enemySprites = {
             zombie: {
-                src: './vampire.png',    // Using vampire sprite for zombie
+                src: './sprites/vampire.png',
                 width: 16,
                 height: 16
             },
             skeleton: {
-                src: './skeleton.png',
+                src: './sprites/skeleton.png',
                 width: 16,
                 height: 16
             },
             snake: {
-                src: './snake.png',
+                src: './sprites/snake.png',
                 width: 16,
                 height: 16
             },
             monster: {
-                src: './pumpkin.png',
+                src: './sprites/pumpkin.png',
                 width: 16,
                 height: 16
             },
             vampire: {
-                src: './vampire.png',
+                src: './sprites/vampire.png',
                 width: 16,
                 height: 16
             }
@@ -240,55 +240,189 @@ class Game {
         console.log(`Sound ${this.soundsEnabled ? 'enabled' : 'disabled'}`);
     }
 
+    initializeAudio() {
+        console.log('Initializing audio system...');
+        this.sounds = {};
+        this.soundsToLoad = 0;
+        this.soundsLoaded = 0;
+        this.audioInitialized = false;
+        this.soundsEnabled = true;
+
+        // Test audio context availability
+        try {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            this.audioContext = new AudioContext();
+            console.log('Audio context created successfully');
+        } catch (e) {
+            console.error('WebAudio not supported:', e);
+        }
+
+        // Updated sound configuration with local paths
+        const soundConfigs = {
+            // Background music
+            houseBgm: { 
+                url: './sounds/house.mp3',
+                volume: 0.3, 
+                loop: true 
+            },
+            defendBgm: { 
+                url: './sounds/defend.mp3',
+                volume: 0.3, 
+                loop: true 
+            },
+            radioSong: {
+                url: './sounds/radio.mp3',
+                volume: 0.5
+            },
+
+            // Weapon sounds
+            'shoot.minigun': { 
+                url: './sounds/minigun.mp3',
+                volume: 0.4 
+            },
+            'shoot.bat': { 
+                url: './sounds/bat.mp3',
+                volume: 0.4 
+            },
+            'shoot.laserGun': { 
+                url: './sounds/laser.mp3',
+                volume: 0.4 
+            },
+            'shoot.rpg': { 
+                url: './sounds/rpg.mp3',
+                volume: 0.4 
+            },
+            'shoot.pistol': { 
+                url: './sounds/pistol.mp3',
+                volume: 0.4 
+            },
+            'shoot.sniper3000': { 
+                url: './sounds/sniper.mp3',
+                volume: 0.4 
+            },
+
+            // Game effects
+            enemyHit: { 
+                url: './sounds/enemy-hit.mp3',
+                volume: 0.5 
+            },
+            enemyDeath: { 
+                url: './sounds/enemy-death.mp3',
+                volume: 0.5 
+            },
+            playerHit: { 
+                url: './sounds/player-hit.mp3',
+                volume: 0.5 
+            },
+            purchase: { 
+                url: './sounds/purchase.mp3',
+                volume: 0.5 
+            },
+            noMoney: { 
+                url: './sounds/no-money.mp3',
+                volume: 0.5 
+            },
+            waveStart: { 
+                url: './sounds/wave-start.mp3',
+                volume: 0.5 
+            },
+            victory: { 
+                url: './sounds/victory.mp3',
+                volume: 0.6 
+            },
+            gameOver: { 
+                url: './sounds/game-over.mp3',
+                volume: 0.6 
+            }
+        };
+
+        // Initialize with all sounds
+        this.initSounds(soundConfigs);
+    }
+
     initSounds(soundConfigs) {
+        console.log('Starting sound loading...');
         this.soundsToLoad = Object.keys(soundConfigs).length;
         
         Object.entries(soundConfigs).forEach(([key, config]) => {
+            console.log(`Attempting to load sound: ${key} from ${config.url}`);
+            
             const audio = new Audio();
             
+            // Add more detailed event listeners
+            audio.addEventListener('loadstart', () => {
+                console.log(`Started loading: ${key}`);
+            });
+
             audio.addEventListener('canplaythrough', () => {
                 console.log(`Successfully loaded sound: ${key}`);
                 this.soundLoaded();
             }, { once: true });
 
             audio.addEventListener('error', (e) => {
-                console.warn(`Failed to load sound ${key}, using silent fallback`);
-                // Create a silent audio element as fallback
-                const silentAudio = new Audio();
-                silentAudio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
-                
-                // Store the silent audio instead
-                if (key.includes('.')) {
-                    const [category, name] = key.split('.');
-                    if (!this.sounds[category]) this.sounds[category] = {};
-                    this.sounds[category][name] = silentAudio;
-                } else {
-                    this.sounds[key] = silentAudio;
-                }
-                
+                console.error(`Error loading sound ${key}:`, e.target.error);
+                console.error('Error details:', {
+                    code: e.target.error.code,
+                    message: e.target.error.message,
+                    url: config.url
+                });
+                this.createSilentFallback(key);
                 this.soundLoaded();
             });
 
-            // Add timeout for loading
-            setTimeout(() => {
+            // Add more error catching
+            audio.onerror = (e) => {
+                console.error(`Additional error info for ${key}:`, e);
+            };
+
+            // Set timeout for loading
+            const timeout = setTimeout(() => {
                 if (!audio.readyState) {
-                    audio.dispatchEvent(new ErrorEvent('error'));
+                    console.warn(`Sound ${key} taking too long to load, creating fallback`);
+                    this.createSilentFallback(key);
+                    this.soundLoaded();
                 }
-            }, 5000);  // 5 second timeout
+            }, 5000);
 
-            audio.src = config.url;
-            audio.volume = config.volume || 0.5;
-            audio._originalVolume = audio.volume;
-            if (config.loop) audio.loop = true;
+            // Clean up timeout if loaded successfully
+            audio.addEventListener('canplaythrough', () => {
+                clearTimeout(timeout);
+            }, { once: true });
 
-            if (key.includes('.')) {
-                const [category, name] = key.split('.');
-                if (!this.sounds[category]) this.sounds[category] = {};
-                this.sounds[category][name] = audio;
-            } else {
-                this.sounds[key] = audio;
+            try {
+                audio.src = config.url;
+                audio.volume = config.volume || 0.5;
+                audio._originalVolume = audio.volume;
+                if (config.loop) audio.loop = true;
+                
+                // Store the audio element
+                if (key.includes('.')) {
+                    const [category, name] = key.split('.');
+                    if (!this.sounds[category]) this.sounds[category] = {};
+                    this.sounds[category][name] = audio;
+                } else {
+                    this.sounds[key] = audio;
+                }
+            } catch (error) {
+                console.error(`Error setting up sound ${key}:`, error);
+                this.createSilentFallback(key);
+                this.soundLoaded();
             }
         });
+    }
+
+    createSilentFallback(key) {
+        console.log(`Creating silent fallback for: ${key}`);
+        const silentAudio = new Audio();
+        silentAudio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+        
+        if (key.includes('.')) {
+            const [category, name] = key.split('.');
+            if (!this.sounds[category]) this.sounds[category] = {};
+            this.sounds[category][name] = silentAudio;
+        } else {
+            this.sounds[key] = silentAudio;
+        }
     }
 
     soundLoaded() {
@@ -397,13 +531,43 @@ class Game {
     }
 
     listenToRadio() {
-        console.log("Listening to radio...");
-        this.switchBackgroundMusic('radio');
-        this.sounds.radioSong.play();
-        setTimeout(() => {
+        console.log("Attempting to play radio...");
+        if (!this.sounds.radioSong) {
+            console.error('Radio song not loaded');
+            return;
+        }
+
+        try {
+            // Stop current music
+            if (this.sounds.houseBgm) {
+                this.sounds.houseBgm.pause();
+                this.sounds.houseBgm.currentTime = 0;
+            }
+
+            // Play radio song
+            this.sounds.radioSong.currentTime = 0; // Reset to start
+            this.sounds.radioSong.play()
+                .then(() => {
+                    console.log('Radio playing successfully');
+                    setTimeout(() => {
+                        alert("Secret Message: 'The ancient scroll lies beneath the old oak tree...'");
+                        // Resume house music
+                        if (this.sounds.houseBgm) {
+                            this.sounds.radioSong.pause();
+                            this.sounds.houseBgm.play()
+                                .catch(e => console.error('Error resuming house music:', e));
+                        }
+                    }, 3000);
+                })
+                .catch(e => {
+                    console.error('Error playing radio:', e);
+                    alert("Secret Message: 'The ancient scroll lies beneath the old oak tree...'");
+                });
+        } catch (e) {
+            console.error('Error in listenToRadio:', e);
+            // Fallback to just showing the message
             alert("Secret Message: 'The ancient scroll lies beneath the old oak tree...'");
-            this.switchBackgroundMusic('house');
-        }, 3000);
+        }
     }
 
     buyWeapon(weaponName) {
@@ -890,26 +1054,36 @@ class Game {
 
     // Update playSound method to check if audio is ready
     playSound(soundName) {
-        if (!this.audioInitialized || !this.soundsEnabled || !this.sounds) return;
+        if (!this.audioInitialized || !this.soundsEnabled || !this.sounds) {
+            console.log(`Sound not played (${soundName}): system not ready`);
+            return;
+        }
         
         try {
+            console.log(`Attempting to play sound: ${soundName}`);
             if (soundName.includes('.')) {
                 const [category, name] = soundName.split('.');
                 if (this.sounds[category]?.[name]) {
                     const sound = this.sounds[category][name].cloneNode();
                     sound.volume = this.sounds[category][name]._originalVolume;
-                    sound.play().catch(e => console.log('Sound play failed:', e));
+                    sound.play()
+                        .then(() => console.log(`Playing ${category}.${name}`))
+                        .catch(e => console.error(`Failed to play ${category}.${name}:`, e));
                 }
             } else if (this.sounds[soundName]) {
-                if (soundName === 'houseBgm' || soundName === 'defendBgm' || soundName === 'radioSong') {
-                    this.sounds[soundName].play().catch(e => console.log('Music play failed:', e));
+                if (soundName.includes('Bgm') || soundName === 'radioSong') {
+                    this.sounds[soundName].play()
+                        .then(() => console.log(`Playing ${soundName}`))
+                        .catch(e => console.error(`Failed to play ${soundName}:`, e));
                 } else {
                     const sound = this.sounds[soundName].cloneNode();
-                    sound.play().catch(e => console.log('Sound play failed:', e));
+                    sound.play()
+                        .then(() => console.log(`Playing ${soundName}`))
+                        .catch(e => console.error(`Failed to play ${soundName}:`, e));
                 }
             }
         } catch (error) {
-            console.log('Error in playSound:', error);
+            console.error('Error in playSound:', error);
         }
     }
 
@@ -918,20 +1092,6 @@ class Game {
             const sound = this.sounds.shoot[this.selectedWeapon].cloneNode();
             sound.play();
         }
-    }
-
-    // Move audio initialization to a separate method
-    initializeAudio() {
-        console.log('Initializing audio...');
-        // Initialize audio system
-        this.sounds = {};
-        this.soundsToLoad = 0;
-        this.soundsLoaded = 0;
-        this.audioInitialized = false;
-        this.soundsEnabled = true;
-
-        // Initialize sound loading
-        this.initSounds(this.soundConfigs);
     }
 
     drawOakTree() {
