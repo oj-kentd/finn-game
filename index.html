@@ -1,65 +1,59 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>8-Bit Side-Scroller</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>8-Bit House Defense</title>
+
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    
+    <meta http-equiv="Last-Modified" content="<?php echo gmdate('D, d M Y H:i:s') ?> GMT">
+    
+    <meta name="turbolinks-cache-control" content="no-cache">
+    
     <style>
-        * {
-            touch-action: none;
-            -webkit-touch-callout: none;
-            -webkit-user-select: none;
-            -khtml-user-select: none;
-            -moz-user-select: none;
-            -ms-user-select: none;
-            user-select: none;
-            outline: none;
-            -webkit-tap-highlight-color: transparent;
+        canvas {
+            border: 4px solid black;
+            display: block;
+            margin: 0 auto;
+            background-color: #000;
+            width: 1600px;
+            height: 1200px;
+            max-width: 90vw;
+            max-height: 90vh;
+            object-fit: contain;
         }
-        
-        html, body {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            position: fixed;
+        body {
             background-color: #333;
             display: flex;
             justify-content: center;
             align-items: center;
-        }
-
-        canvas {
-            border: 4px solid black;
-            background-color: #000;
-            width: 100vmin;
-            height: 75vmin;
-            max-width: 1600px;
-            max-height: 1200px;
-            object-fit: contain;
-            image-rendering: pixelated;
-            image-rendering: crisp-edges;
-        }
-
-        @media (orientation: portrait) {
-            canvas {
-                width: 100vw;
-                height: 75vw;
-            }
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
         }
     </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
 </head>
 <body>
     <canvas id="gameCanvas"></canvas>
-    <script src="enemy.js"></script>
-    <script src="game.js"></script>
+    <script src="enemy.js?v=0.8.8"></script>
+    <script src="game.js?v=0.8.8"></script>
     <script>
-        // Prevent default touch behaviors
-        document.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
-        document.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
-        
-        // Create game instance
         const game = new Game();
+        // The game loop is now started in the constructor
+        // No need to call startGame() anymore
+
+        // Force reload if version changes
+        const currentVersion = "v0.8.8";
+        const lastVersion = localStorage.getItem('gameVersion');
+        if (lastVersion !== currentVersion) {
+            localStorage.setItem('gameVersion', currentVersion);
+            if (lastVersion) { // Only reload if this isn't the first visit
+                window.location.reload(true);
+            }
+        }
     </script>
 </body>
 </html> 
