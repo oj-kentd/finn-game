@@ -1,7 +1,7 @@
 // Main game class
 class Game {
     constructor() {
-        this.version = "v0.8.12"; // Increment version (DO NOT DELETE THIS LINE)
+        this.version = "v0.8.13"; // Increment version (DO NOT DELETE THIS LINE)
         // Add timestamp to version for absolute cache busting
         this.version += ` (${new Date().toISOString().slice(0, 19)})`;
         this.debugLog = [];      // Store debug messages
@@ -323,24 +323,24 @@ class Game {
         // Update menu touch controls with adjusted positions
         this.menuControls = {
             shopButton: {
-                x: 40,  // Was 200, align with text
-                y: 90,  // Was 120, align with text
-                width: 200,
-                height: 60,
+                x: 40,
+                y: this.canvas.height * 0.1, // Position at 10% of canvas height
+                width: 300,  // Make buttons wider
+                height: 80,  // Make buttons taller
                 text: '1: Shop'
             },
             radioButton: {
-                x: 40,  // Was 200
-                y: 150, // Was 180
+                x: 40,
+                y: this.canvas.height * 0.2, // Position at 20% of canvas height
                 width: 300,
-                height: 60,
+                height: 80,
                 text: '2: Listen to Radio'
             },
             defendButton: {
-                x: 40,  // Was 200
-                y: 210, // Was 240
+                x: 40,
+                y: this.canvas.height * 0.3, // Position at 30% of canvas height
                 width: 300,
-                height: 60,
+                height: 80,
                 text: '3: Start Defend Mode'
             },
             backButton: {
@@ -1303,38 +1303,54 @@ class Game {
     setupTouchControls() {
         const handleTouch = (e) => {
             e.preventDefault();
-            const rect = this.canvas.getBoundingClientRect();
-            const scale = Math.min(this.canvas.width / rect.width, this.canvas.height / rect.height);
             
             if (e.touches.length > 0) {
                 const touch = e.touches[0];
-                const x = (touch.clientX - rect.left) * scale;
-                const y = (touch.clientY - rect.top) * scale;
+                const rect = this.canvas.getBoundingClientRect();
                 
-                this.debug(`Touch: ${Math.round(x)},${Math.round(y)}`);
+                // Calculate position as percentage of canvas
+                const xPercent = (touch.clientX - rect.left) / rect.width;
+                const yPercent = (touch.clientY - rect.top) / rect.height;
+                
+                // Convert to canvas coordinates
+                const x = xPercent * this.canvas.width;
+                const y = yPercent * this.canvas.height;
+                
+                this.debug(`Touch at: ${Math.round(x)},${Math.round(y)}`);
 
-                // Handle menu buttons with early return
+                // Handle menu buttons
                 if (this.gameState === 'house') {
-                    const buttons = ['shopButton', 'radioButton', 'defendButton'];
-                    for (const name of buttons) {
-                        const button = this.menuControls[name];
-                        if (y > button.y && y < button.y + button.height - 1 && 
-                            x > button.x && x < button.x + button.width) {
-                            this.debug(`Activating: ${name}`);
-                            if (name === 'shopButton') this.gameState = 'shop';
-                            else if (name === 'radioButton') this.listenToRadio();
-                            else if (name === 'defendButton' && this.player.hasWeapon) {
-                                this.gameState = 'defend';
-                                this.switchBackgroundMusic('defend');
-                                this.startWave();
+                    Object.entries(this.menuControls).forEach(([name, button]) => {
+                        // Add padding to hit boxes
+                        const hitBox = {
+                            x1: button.x - 10,
+                            y1: button.y - 10,
+                            x2: button.x + button.width + 10,
+                            y2: button.y + button.height + 10
+                        };
+
+                        if (x >= hitBox.x1 && x <= hitBox.x2 && 
+                            y >= hitBox.y1 && y <= hitBox.y2) {
+                            this.debug(`Hit ${name} button`);
+                            switch(name) {
+                                case 'shopButton':
+                                    this.gameState = 'shop';
+                                    break;
+                                case 'radioButton':
+                                    this.listenToRadio();
+                                    break;
+                                case 'defendButton':
+                                    if (this.player.hasWeapon) {
+                                        this.gameState = 'defend';
+                                        this.switchBackgroundMusic('defend');
+                                        this.startWave();
+                                    }
+                                    break;
                             }
-                            return; // Exit after first hit
+                            return;
                         }
-                    }
+                    });
                 }
-                
-                // Handle game controls only if no menu button was hit
-                this.handleGameControls(x, y);
             }
         };
 
