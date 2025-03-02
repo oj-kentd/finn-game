@@ -3,13 +3,21 @@ class Game {
     constructor() {
         // ----
         // (DO NOT DELETE THIS LINE)
-        this.version = "v0.9.1"; // Increment version for every update (DO NOT DELETE THIS LINE)
+        this.version = "v0.9.2"; // Increment version for every update (DO NOT DELETE THIS LINE)
         this.version += ` (${new Date().toISOString().slice(0, 19)})`;
         // ----
 
         // Add timestamp to version for absolute cache busting
         this.debugLog = [];      // Store debug messages
         this.maxDebugLines = 20;  // Number of debug lines to show
+
+        // Add wave set counter for increasing difficulty
+        this.waveSet = 0;       // Tracks completed sets of waves
+        this.enemyScaling = {   // Scaling factors for each completed set
+            health: 1.5,        // 50% more health per set
+            damage: 1.25,       // 25% more damage per set
+            speed: 1.1          // 10% more speed per set
+        };
 
         // Add debug helper method
         this.debug = (message) => {
@@ -67,12 +75,12 @@ class Game {
         };
 
         this.weaponShop = {
-            minigun: { name: 'Minigun', price: 100, damage: 20 },
-            bat: { name: 'Bat', price: 50, damage: 8 },
-            laserGun: { name: 'Laser Gun', price: 10, damage: 1 },
-            rpg: { name: 'RPG', price: 1000, damage: 42 },
-            pistol: { name: 'Pistol', price: 100, damage: 2 },
-            sniper3000: { name: 'Sniper3000', price: 0, damage: 100, secret: true }
+            minigun: { name: 'Minigun', price: 100, damage: 20, fireRate: 10 }, // 10 shots per second
+            bat: { name: 'Bat', price: 50, damage: 8, fireRate: 2 }, // 2 shots per second
+            laserGun: { name: 'Laser Gun', price: 10, damage: 1, fireRate: 5 }, // 5 shots per second
+            rpg: { name: 'RPG', price: 1000, damage: 42, fireRate: 0.5 }, // 1 shot every 2 seconds
+            pistol: { name: 'Pistol', price: 100, damage: 2, fireRate: 3 }, // 3 shots per second
+            sniper3000: { name: 'Sniper3000', price: 0, damage: 100, secret: true, fireRate: 1 } // 1 shot per second
         };
 
         // Add new properties for defend mode
@@ -144,93 +152,11 @@ class Game {
         // Add click handler for initial interaction
         this.canvas.addEventListener('click', () => {
             if (this.gameState === 'start') {
-                this.initializeAudio();
+                this.startGame();
             }
         });
 
         // Don't initialize audio yet, just load the configurations
-        this.soundConfigs = {
-            // Background music - reduced to 30% of original volume
-            houseBgm: { 
-                url: './sounds/house.mp3',
-                volume: 0.15,  // Was 0.3
-                loop: true 
-            },
-            defendBgm: { 
-                url: './sounds/defend.mp3',
-                volume: 0.15,  // Was 0.3
-                loop: true 
-            },
-            radioSong: {
-                url: './sounds/radio.mp3',
-                volume: 0.25   // Was 0.5
-            },
-            
-            // Weapon sounds - reduced to 25% of original volume
-            'shoot.minigun': { 
-                url: './sounds/minigun.mp3',
-                volume: 0.1    // Was 0.4
-            },
-            'shoot.bat': { 
-                url: './sounds/bat.mp3',
-                volume: 0.1    // Was 0.4
-            },
-            'shoot.laserGun': { 
-                url: './sounds/laser.mp3',
-                volume: 0.1    // Was 0.4
-            },
-            'shoot.rpg': { 
-                url: './sounds/rpg.mp3',
-                volume: 0.1    // Was 0.4
-            },
-            'shoot.pistol': { 
-                url: './sounds/pistol.mp3',
-                volume: 0.1    // Was 0.4
-            },
-            
-            // Game effects - keep these at current volume
-            enemyDeath: { 
-                url: './sounds/enemy-death.mp3',
-                volume: 0.5 
-            },
-            playerHit: { 
-                url: './sounds/player-hit.mp3',
-                volume: 0.5 
-            },
-            purchase: { 
-                url: './sounds/purchase.mp3',
-                volume: 0.5 
-            },
-            noMoney: { 
-                url: './sounds/no-money.mp3',
-                volume: 0.5 
-            },
-            waveStart: { 
-                url: './sounds/wave-start.mp3',
-                volume: 0.5 
-            },
-            victory: { 
-                url: './sounds/victory.mp3',
-                volume: 0.6 
-            },
-            gameOver: { 
-                url: './sounds/game-over.mp3',
-                volume: 0.6 
-            }
-        };
-
-        // Add mute/unmute controls
-        window.addEventListener('keydown', (e) => {
-            if (e.key === 'M' || e.key === 'm') {
-                this.toggleSound();
-            }
-        });
-
-        // Setup event listeners
-        this.setupControls();
-        this.setupGamepad();
-
-        // Start the game loop immediately, but don't play sounds yet
         this.startGameLoop();
 
         // Update oak tree position and size
@@ -242,27 +168,58 @@ class Game {
             scrollFound: false
         };
 
-        // Touch controls configuration
+        // Update touch controls configuration with better positioned defend mode controls
         this.touchControls = {
-            leftButton: { x: 100, y: this.canvas.height - 100, radius: 50, pressed: false },
-            rightButton: { x: 250, y: this.canvas.height - 100, radius: 50, pressed: false },
-            shootButton: { x: this.canvas.width - 150, y: this.canvas.height - 100, radius: 50, pressed: false },
-            actionButton: { x: this.canvas.width - 300, y: this.canvas.height - 100, radius: 50, pressed: false },
+            leftButton: { 
+                x: 100, 
+                y: this.canvas.height - 150, 
+                radius: 60, 
+                pressed: false,
+                icon: '←',
+                lastPressed: 0
+            },
+            rightButton: { 
+                x: 250, 
+                y: this.canvas.height - 150, 
+                radius: 60, 
+                pressed: false,
+                icon: '→',
+                lastPressed: 0
+            },
+            shootButton: { 
+                x: this.canvas.width - 150, 
+                y: this.canvas.height - 150, 
+                radius: 70, 
+                pressed: false,
+                icon: '🔥',
+                lastPressed: 0
+            },
+            actionButton: { 
+                x: this.canvas.width - 100, 
+                y: 100, 
+                radius: 40, 
+                pressed: false,
+                icon: '×',
+                lastPressed: 0
+            },
             menuButtons: [
-                { x: 100, y: 200, width: 200, height: 60, text: 'Shop (1)', action: '1' },
-                { x: 100, y: 300, width: 200, height: 60, text: 'Radio (2)', action: '2' },
-                { x: 100, y: 400, width: 200, height: 60, text: 'Start Wave (3)', action: '3' }
+                { x: this.canvas.width/2 - 200, y: 300, width: 400, height: 80, text: 'Shop', action: '1', pressed: false },
+                { x: this.canvas.width/2 - 200, y: 400, width: 400, height: 80, text: 'Radio', action: '2', pressed: false },
+                { x: this.canvas.width/2 - 200, y: 500, width: 400, height: 80, text: 'Start Wave', action: '3', pressed: false }
             ],
             shopButtons: [], // Will be populated in setupShop
             isTouching: false,
+            touchStartTime: 0,
+            showControls: false, // New flag for persistent controls
             lastTouchX: 0,
-            lastTouchY: 0
+            lastTouchY: 0,
+            activeTouches: new Map() // Track active touches by identifier
         };
 
         // Setup touch controls
         this.setupTouchControls();
 
-        // Add sound cooldown system
+        // Add sound cooldowns
         this.soundCooldowns = {
             'shoot.minigun': 100,  // 100ms cooldown for minigun
             'shoot.bat': 200,      // 200ms cooldown for bat
@@ -275,6 +232,21 @@ class Game {
         
         // Track last play time for each sound
         this.lastSoundPlayed = {};
+
+        // Update enemy base stats for better scaling
+        this.enemyBaseStats = {
+            zombie: { health: 100, damage: 1, speed: 2 },
+            skeleton: { health: 80, damage: 2, speed: 3 },
+            snake: { health: 60, damage: 3, speed: 4 },
+            monster: { health: 150, damage: 2, speed: 2 },
+            vampire: { health: 120, damage: 3, speed: 3 }
+        };
+    }
+
+    startGame() {
+        this.initializeAudio();
+        this.gameState = 'house';
+        this.switchBackgroundMusic('house');
     }
 
     toggleSound() {
@@ -628,8 +600,10 @@ class Game {
 
     startWave() {
         if (this.currentWave >= this.totalWaves) {
+            this.waveSet++; // Increment set counter
             this.playSound('victory');
-            alert("Congratulations! You've defended your house from all waves!");
+            alert(`Congratulations! You've completed Set ${this.waveSet}!\nEnemies will be stronger in the next set.`);
+            this.currentWave = 0; // Reset wave counter
             this.gameState = 'house';
             this.switchBackgroundMusic('house');
             return;
@@ -639,14 +613,24 @@ class Game {
         this.waveInProgress = true;
         const waveConfig = this.waveConfigs[this.currentWave];
         
-        // Spawn enemies at the correct height
+        // Calculate scaling factors based on current set
+        const healthScale = Math.pow(this.enemyScaling.health, this.waveSet);
+        const damageScale = Math.pow(this.enemyScaling.damage, this.waveSet);
+        const speedScale = Math.pow(this.enemyScaling.speed, this.waveSet);
+        
+        // Spawn enemies with scaled stats
         Object.entries(waveConfig).forEach(([type, count]) => {
             for (let i = 0; i < count; i++) {
-                this.enemies.push(new Enemy(
+                const enemy = new Enemy(
                     type, 
-                    this.canvas.width + Math.random() * 200,  // Random X position off-screen
-                    this.canvas.height - this.groundHeight - (32 * 4)  // Same Y position as player
-                ));
+                    this.canvas.width + Math.random() * 200,
+                    this.canvas.height - this.groundHeight - (32 * 4)
+                );
+                // Scale enemy stats
+                enemy.health *= healthScale;
+                enemy.damage *= damageScale;
+                enemy.speed *= speedScale;
+                this.enemies.push(enemy);
             }
         });
     }
@@ -748,6 +732,8 @@ class Game {
                             this.currentWave = 0;
                             this.enemies = [];
                             this.waveInProgress = false;
+                            // Reset touch controls
+                            this.resetTouchControls();
                         }
                     }
                 }
@@ -761,14 +747,30 @@ class Game {
             }
         }
 
-        // Add touch control movement
+        // Add touch control movement with rate limiting and boundary checks
+        const now = Date.now();
+        const moveSpeed = this.player.speed;
+        
         if (this.touchControls.leftButton.pressed) {
-            this.player.x -= this.player.speed;
-            this.player.direction = 'left';
+            if (now - this.touchControls.leftButton.lastPressed >= 16) { // ~60fps rate limit
+                const newX = this.player.x - moveSpeed;
+                if (newX > this.house.width) { // Boundary check
+                    this.player.x = newX;
+                    this.player.direction = 'left';
+                }
+                this.touchControls.leftButton.lastPressed = now;
+            }
         }
+        
         if (this.touchControls.rightButton.pressed) {
-            this.player.x += this.player.speed;
-            this.player.direction = 'right';
+            if (now - this.touchControls.rightButton.lastPressed >= 16) { // ~60fps rate limit
+                const newX = this.player.x + moveSpeed;
+                if (newX < this.canvas.width - this.player.width) { // Boundary check
+                    this.player.x = newX;
+                    this.player.direction = 'right';
+                }
+                this.touchControls.rightButton.lastPressed = now;
+            }
         }
 
         this.draw();
@@ -808,11 +810,7 @@ class Game {
             this.ctx.font = '18px Arial';
             this.ctx.fillText('Controls: Arrow keys to move, Space to shoot', this.canvas.width/2 - 150, this.canvas.height/2 + 100);
             this.ctx.fillText('M to mute/unmute sound', this.canvas.width/2 - 80, this.canvas.height/2 + 130);
-            
-            return;
-        }
-        
-        if (this.gameState === 'house') {
+        } else if (this.gameState === 'house') {
             this.drawHouse();
         } else if (this.gameState === 'defend') {
             this.drawDefendMode();
@@ -822,21 +820,44 @@ class Game {
 
         // Draw touch controls
         this.drawTouchControls();
+
+        // Draw version number in all states
+        this.ctx.fillStyle = 'white';
+        this.ctx.font = '16px Arial';
+        this.ctx.textAlign = 'left';
+        this.ctx.fillText(this.version, 10, this.canvas.height - 10);
     }
 
     drawHouse() {
         this.ctx.fillStyle = '#8b4513';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-        this.ctx.fillStyle = 'white';
-        this.ctx.font = '40px Arial';  // Was 20px
-        this.ctx.fillText(`Coins: ${this.coins}`, 40, 60);
-        this.ctx.fillText('1: Shop', 40, 120);
-        this.ctx.fillText('2: Listen to Radio', 40, 180);
+        // Draw menu buttons
+        this.ctx.textAlign = 'center';
+        this.touchControls.menuButtons.forEach(btn => {
+            // Draw button background with hover effect
+            this.ctx.fillStyle = btn.pressed ? '#4a4a4a' : '#333333';
+            this.ctx.fillRect(btn.x, btn.y, btn.width, btn.height);
+            
+            // Draw button border
+            this.ctx.strokeStyle = 'white';
+            this.ctx.lineWidth = 2;
+            this.ctx.strokeRect(btn.x, btn.y, btn.width, btn.height);
+            
+            // Draw button text
+            this.ctx.fillStyle = 'white';
+            this.ctx.font = '32px Arial';
+            this.ctx.fillText(btn.text, btn.x + btn.width/2, btn.y + btn.height/2 + 10);
+        });
 
-        if (this.player.hasWeapon) {
-            this.ctx.fillText('3: Start Defend Mode', 40, 240);
-        }
+        // Draw coins
+        this.ctx.textAlign = 'left';
+        this.ctx.fillStyle = 'white';
+        this.ctx.font = '40px Arial';
+        this.ctx.fillText(`Coins: ${this.coins}`, 40, 60);
+
+        // Reset text alignment
+        this.ctx.textAlign = 'left';
     }
 
     drawDefendMode() {
@@ -917,12 +938,18 @@ class Game {
 
         // Update UI text
         this.ctx.fillStyle = 'white';
-        this.ctx.font = '40px Arial';  // Was 20px
-        this.ctx.fillText(`Wave: ${this.currentWave + 1}/${this.totalWaves}`, 40, 60);
-        this.ctx.fillText(`Hearts: ${this.hearts}`, 40, 120);
+        this.ctx.font = '40px Arial';
+        this.ctx.fillText(`Set ${this.waveSet + 1}`, 40, 60);
+        this.ctx.fillText(`Wave: ${this.currentWave + 1}/${this.totalWaves}`, 40, 120);
+        this.ctx.fillText(`Hearts: ${this.hearts}`, 40, 180);
         
         if (this.selectedWeapon) {
-            this.ctx.fillText(`Weapon: ${this.weaponShop[this.selectedWeapon].name}`, 40, 180);
+            this.ctx.fillText(`Weapon: ${this.weaponShop[this.selectedWeapon].name}`, 40, 240);
+        }
+
+        // Draw touch controls last so they're on top
+        if (this.isMobileDevice() || this.touchControls.isTouching) {
+            this.drawTouchControls();
         }
     }
 
@@ -1028,39 +1055,79 @@ class Game {
         this.ctx.fillStyle = '#2c3e50';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
+        // Draw title
         this.ctx.fillStyle = '#ecf0f1';
-        this.ctx.font = '64px Arial';  // Was 32px
-        this.ctx.fillText('WEAPON SHOP', this.canvas.width/2 - 200, 100);
+        this.ctx.font = '64px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText('WEAPON SHOP', this.canvas.width/2, 100);
 
-        this.ctx.font = '48px Arial';  // Was 24px
-        this.ctx.fillText(`Coins: ${this.coins}`, 40, 80);
+        // Draw coins
+        this.ctx.font = '48px Arial';
+        this.ctx.fillText(`Coins: ${this.coins}`, this.canvas.width/2, 180);
 
-        this.ctx.font = '40px Arial';  // Was 20px
-        let y = 240;  // Was 120
+        // Draw weapon buttons
+        let y = 250;
         Object.entries(this.weaponShop).forEach(([key, weapon], index) => {
             if (weapon.secret && !this.oakTree.scrollFound) return;
 
-            if (index === this.shopSelection) {
-                this.ctx.fillStyle = '#f1c40f';
-                this.ctx.fillRect(100, y - 40, this.canvas.width - 200, 60);
+            // Create shop button if it doesn't exist
+            if (!this.touchControls.shopButtons[index]) {
+                this.touchControls.shopButtons[index] = {
+                    x: this.canvas.width/2 - 300,
+                    y: y,
+                    width: 600,
+                    height: 80,
+                    weapon: key,
+                    pressed: false
+                };
             }
 
-            this.ctx.fillStyle = '#ecf0f1';
+            const btn = this.touchControls.shopButtons[index];
+
+            // Draw button background
+            this.ctx.fillStyle = btn.pressed ? '#4a4a4a' : 
+                               (index === this.shopSelection ? '#3498db' : '#333333');
+            this.ctx.fillRect(btn.x, btn.y, btn.width, btn.height);
+
+            // Draw button border
+            this.ctx.strokeStyle = 'white';
+            this.ctx.lineWidth = 2;
+            this.ctx.strokeRect(btn.x, btn.y, btn.width, btn.height);
+
+            // Draw weapon info
+            this.ctx.fillStyle = weapon.secret ? '#FFD700' : '#ecf0f1';
+            this.ctx.font = '32px Arial';
             let text = `${weapon.name} - ${weapon.price} coins (Damage: ${weapon.damage})`;
-            if (weapon.secret) {
-                text += ' [LEGENDARY]';
-                this.ctx.fillStyle = '#FFD700';
-            }
-            this.ctx.fillText(text, 120, y);
-            y += 100;  // Was 50
+            if (weapon.secret) text += ' [LEGENDARY]';
+            this.ctx.fillText(text, this.canvas.width/2, y + 50);
+
+            y += 100;
         });
 
-        this.ctx.fillStyle = '#bdc3c7';
-        this.ctx.font = '36px Arial';  // Was 18px
-        this.ctx.fillText('↑↓: Select weapon | Enter: Purchase | Esc: Exit shop', 
-            this.canvas.width/2 - 400, 
-            this.canvas.height - 60
-        );
+        // Draw back button at the bottom
+        const backBtn = {
+            x: this.canvas.width/2 - 200,
+            y: this.canvas.height - 120,
+            width: 400,
+            height: 80,
+            text: 'Back to House',
+            action: 'Escape',
+            pressed: false
+        };
+        
+        // Store back button reference
+        this.touchControls.shopBackButton = backBtn;
+
+        // Draw back button
+        this.ctx.fillStyle = backBtn.pressed ? '#4a4a4a' : '#333333';
+        this.ctx.fillRect(backBtn.x, backBtn.y, backBtn.width, backBtn.height);
+        this.ctx.strokeStyle = 'white';
+        this.ctx.strokeRect(backBtn.x, backBtn.y, backBtn.width, backBtn.height);
+        this.ctx.fillStyle = 'white';
+        this.ctx.fillText(backBtn.text, this.canvas.width/2, backBtn.y + 50);
+
+        // Reset text alignment
+        this.ctx.textAlign = 'left';
     }
 
     // Separate game loop start from audio start
@@ -1231,59 +1298,94 @@ class Game {
     }
 
     setupTouchControls() {
+        // Helper function to get touch coordinates
+        const getTouchCoordinates = (touch, canvas) => {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            return {
+                x: (touch.clientX - rect.left) * scaleX,
+                y: (touch.clientY - rect.top) * scaleY
+            };
+        };
+
+        let shootInterval = null; // Store interval for continuous shooting
+
         this.canvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
             const touches = e.touches;
             this.touchControls.isTouching = true;
+            this.touchControls.showControls = true;
+            this.touchControls.touchStartTime = Date.now();
+            
+            // Handle start screen with any touch
+            if (this.gameState === 'start') {
+                this.startGame();
+                return;
+            }
             
             for (let i = 0; i < touches.length; i++) {
                 const touch = touches[i];
-                const rect = this.canvas.getBoundingClientRect();
-                const scale = this.canvas.width / rect.width;
-                const x = (touch.clientX - rect.left) * scale;
-                const y = (touch.clientY - rect.top) * scale;
+                const {x, y} = getTouchCoordinates(touch, this.canvas);
+                
+                this.touchControls.activeTouches.set(touch.identifier, {x, y});
                 
                 this.touchControls.lastTouchX = x;
                 this.touchControls.lastTouchY = y;
 
                 // Handle different game states
                 switch (this.gameState) {
-                    case 'start':
-                        if (y > this.canvas.height / 2) {
-                            this.startGame();
-                        }
-                        break;
                     case 'house':
-                        // Check menu buttons
-                        for (const btn of this.touchControls.menuButtons) {
+                        this.touchControls.menuButtons.forEach(btn => {
                             if (this.isInsideButton(x, y, btn)) {
-                                this.handleKeyPress({ key: btn.action });
+                                btn.pressed = true;
+                                if (btn.action === '3' && !this.player.hasWeapon) {
+                                    alert("You need to buy a weapon first!");
+                                    this.playSound('noMoney');
+                                    this.resetTouchControls(); // Reset after alert
+                                } else {
+                                    this.handleKeyPress({ key: btn.action });
+                                }
                             }
-                        }
+                        });
                         break;
                     case 'shop':
-                        // Handle shop selections
-                        const itemHeight = 60;
-                        const startY = 200;
-                        const weapons = Object.keys(this.weaponShop);
-                        const touchedIndex = Math.floor((y - startY) / itemHeight);
-                        if (touchedIndex >= 0 && touchedIndex < weapons.length) {
-                            this.shopSelection = touchedIndex;
-                            if (x > this.canvas.width / 2) {
-                                this.handleKeyPress({ key: 'Enter' });
+                        this.touchControls.shopButtons.forEach((btn, index) => {
+                            if (this.isInsideButton(x, y, btn)) {
+                                btn.pressed = true;
+                                this.shopSelection = index;
+                                this.purchaseSelectedWeapon();
                             }
+                        });
+
+                        if (this.touchControls.shopBackButton && 
+                            this.isInsideButton(x, y, this.touchControls.shopBackButton)) {
+                            this.touchControls.shopBackButton.pressed = true;
+                            this.handleKeyPress({ key: 'Escape' });
                         }
                         break;
                     case 'defend':
-                        // Movement and action buttons
                         if (this.isInsideCircle(x, y, this.touchControls.leftButton)) {
                             this.touchControls.leftButton.pressed = true;
+                            this.touchControls.leftButton.lastPressed = Date.now();
                         }
                         if (this.isInsideCircle(x, y, this.touchControls.rightButton)) {
                             this.touchControls.rightButton.pressed = true;
+                            this.touchControls.rightButton.lastPressed = Date.now();
                         }
                         if (this.isInsideCircle(x, y, this.touchControls.shootButton)) {
-                            this.shoot();
+                            this.touchControls.shootButton.pressed = true;
+                            // Start continuous shooting based on weapon fire rate
+                            if (this.selectedWeapon) {
+                                const weapon = this.weaponShop[this.selectedWeapon];
+                                const fireInterval = 1000 / weapon.fireRate; // Convert to milliseconds
+                                this.shoot(); // Initial shot
+                                shootInterval = setInterval(() => {
+                                    if (this.touchControls.shootButton.pressed) {
+                                        this.shoot();
+                                    }
+                                }, fireInterval);
+                            }
                         }
                         if (this.isInsideCircle(x, y, this.touchControls.actionButton)) {
                             this.handleKeyPress({ key: 'Escape' });
@@ -1295,41 +1397,65 @@ class Game {
 
         this.canvas.addEventListener('touchend', (e) => {
             e.preventDefault();
-            this.touchControls.isTouching = false;
-            this.touchControls.leftButton.pressed = false;
-            this.touchControls.rightButton.pressed = false;
+            
+            // Clear shooting interval if it exists
+            if (shootInterval) {
+                clearInterval(shootInterval);
+                shootInterval = null;
+            }
+
+            // Remove ended touches from tracking
+            Array.from(e.changedTouches).forEach(touch => {
+                this.touchControls.activeTouches.delete(touch.identifier);
+                
+                // If this was the shooting touch, stop shooting
+                const {x, y} = getTouchCoordinates(touch, this.canvas);
+                if (this.isInsideCircle(x, y, this.touchControls.shootButton)) {
+                    this.touchControls.shootButton.pressed = false;
+                }
+            });
+
+            // Only reset isTouching if no touches remain
+            if (e.touches.length === 0) {
+                this.touchControls.isTouching = false;
+                setTimeout(() => {
+                    if (!this.touchControls.isTouching) {
+                        this.touchControls.showControls = false;
+                    }
+                }, 3000);
+            }
+
+            this.resetTouchControls();
         });
 
-        this.canvas.addEventListener('touchmove', (e) => {
+        // Add touch cancel handler that also clears the shoot interval
+        this.canvas.addEventListener('touchcancel', (e) => {
             e.preventDefault();
-            const touches = e.touches;
-            
-            for (let i = 0; i < touches.length; i++) {
-                const touch = touches[i];
-                const rect = this.canvas.getBoundingClientRect();
-                const scale = this.canvas.width / rect.width;
-                const x = (touch.clientX - rect.left) * scale;
-                const y = (touch.clientY - rect.top) * scale;
-                
-                this.touchControls.lastTouchX = x;
-                this.touchControls.lastTouchY = y;
-
-                if (this.gameState === 'defend') {
-                    this.touchControls.leftButton.pressed = this.isInsideCircle(x, y, this.touchControls.leftButton);
-                    this.touchControls.rightButton.pressed = this.isInsideCircle(x, y, this.touchControls.rightButton);
-                }
+            if (shootInterval) {
+                clearInterval(shootInterval);
+                shootInterval = null;
             }
+            this.resetTouchControls();
         });
     }
 
-    isInsideButton(x, y, button) {
-        return x >= button.x && x <= button.x + button.width &&
-               y >= button.y && y <= button.y + button.height;
+    resetTouchControls() {
+        // Reset all button states
+        this.touchControls.leftButton.pressed = false;
+        this.touchControls.rightButton.pressed = false;
+        this.touchControls.menuButtons.forEach(btn => btn.pressed = false);
+        this.touchControls.shopButtons.forEach(btn => btn.pressed = false);
+        if (this.touchControls.shopBackButton) {
+            this.touchControls.shopBackButton.pressed = false;
+        }
+        // Clear active touches
+        this.touchControls.activeTouches.clear();
     }
 
     drawTouchControls() {
-        if (!this.touchControls.isTouching && window.innerWidth >= 1024) {
-            return; // Don't draw touch controls on desktop/large screens unless actively touching
+        // Show controls if touching or within 3 seconds of last touch, or on mobile
+        if (!this.touchControls.showControls && !this.isMobileDevice()) {
+            return;
         }
 
         this.ctx.globalAlpha = 0.5;
@@ -1338,28 +1464,62 @@ class Game {
         switch (this.gameState) {
             case 'defend':
                 // Movement buttons
-                this.ctx.fillStyle = this.touchControls.leftButton.pressed ? '#666' : '#333';
-                this.ctx.beginPath();
-                this.ctx.arc(this.touchControls.leftButton.x, this.touchControls.leftButton.y, 
-                            this.touchControls.leftButton.radius, 0, Math.PI * 2);
-                this.ctx.fill();
-                this.ctx.fillStyle = this.touchControls.rightButton.pressed ? '#666' : '#333';
-                this.ctx.beginPath();
-                this.ctx.arc(this.touchControls.rightButton.x, this.touchControls.rightButton.y, 
-                            this.touchControls.rightButton.radius, 0, Math.PI * 2);
-                this.ctx.fill();
+                ['leftButton', 'rightButton', 'shootButton', 'actionButton'].forEach(btnName => {
+                    const btn = this.touchControls[btnName];
+                    
+                    // Special handling for shoot button
+                    if (btnName === 'shootButton') {
+                        // Red background for shoot button
+                        this.ctx.fillStyle = btn.pressed ? '#aa0000' : '#ff0000';
+                        this.ctx.beginPath();
+                        this.ctx.arc(btn.x, btn.y, btn.radius, 0, Math.PI * 2);
+                        this.ctx.fill();
 
-                // Action buttons
-                this.ctx.fillStyle = '#f00';
-                this.ctx.beginPath();
-                this.ctx.arc(this.touchControls.shootButton.x, this.touchControls.shootButton.y, 
-                            this.touchControls.shootButton.radius, 0, Math.PI * 2);
-                this.ctx.fill();
-                this.ctx.fillStyle = '#0f0';
-                this.ctx.beginPath();
-                this.ctx.arc(this.touchControls.actionButton.x, this.touchControls.actionButton.y, 
-                            this.touchControls.actionButton.radius, 0, Math.PI * 2);
-                this.ctx.fill();
+                        // Add a glow effect when pressed
+                        if (btn.pressed) {
+                            this.ctx.shadowColor = '#ff0000';
+                            this.ctx.shadowBlur = 20;
+                            this.ctx.strokeStyle = '#ff6666';
+                            this.ctx.lineWidth = 4;
+                            this.ctx.stroke();
+                            this.ctx.shadowBlur = 0;
+                        }
+
+                        // White border
+                        this.ctx.strokeStyle = 'white';
+                        this.ctx.lineWidth = 3;
+                        this.ctx.stroke();
+                    } else {
+                        // Normal buttons
+                        this.ctx.fillStyle = btn.pressed ? '#666666' : '#333333';
+                        this.ctx.beginPath();
+                        this.ctx.arc(btn.x, btn.y, btn.radius, 0, Math.PI * 2);
+                        this.ctx.fill();
+                        this.ctx.strokeStyle = 'white';
+                        this.ctx.lineWidth = 3;
+                        this.ctx.stroke();
+                    }
+
+                    // Draw button icon/text
+                    this.ctx.fillStyle = 'white';
+                    this.ctx.font = btnName === 'shootButton' ? '48px Arial' : '36px Arial';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.textBaseline = 'middle';
+                    this.ctx.fillText(btn.icon, btn.x, btn.y);
+                });
+
+                // Draw labels under movement buttons
+                this.ctx.fillStyle = 'white';
+                this.ctx.font = '24px Arial';
+                this.ctx.fillText('MOVE', 175, this.canvas.height - 60);
+                this.ctx.fillText('SHOOT', this.canvas.width - 150, this.canvas.height - 60);
+
+                // If a weapon is selected, show its fire rate
+                if (this.selectedWeapon) {
+                    const weapon = this.weaponShop[this.selectedWeapon];
+                    this.ctx.font = '20px Arial';
+                    this.ctx.fillText(`Rate: ${weapon.fireRate}/s`, this.canvas.width - 150, this.canvas.height - 30);
+                }
                 break;
 
             case 'house':
@@ -1376,9 +1536,22 @@ class Game {
         }
 
         this.ctx.globalAlpha = 1.0;
+        this.ctx.textBaseline = 'alphabetic'; // Reset textBaseline
+    }
+
+    isInsideButton(x, y, button) {
+        return x >= button.x && x <= button.x + button.width &&
+               y >= button.y && y <= button.y + button.height;
+    }
+
+    isInsideCircle(x, y, circle) {
+        const dx = x - circle.x;
+        const dy = y - circle.y;
+        return Math.sqrt(dx * dx + dy * dy) <= circle.radius;
     }
 
     isMobileDevice() {
-        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+               (window.innerWidth <= 1024);
     }
 } 
