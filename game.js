@@ -1,6 +1,19 @@
 // Main game class
 class Game {
     constructor() {
+        this.version = "v0.8.1"; // Increment this when making changes
+        this.debugLog = [];      // Store debug messages
+        this.maxDebugLines = 5;  // Number of debug lines to show
+
+        // Add debug helper method
+        this.debug = (message) => {
+            console.log(message);
+            this.debugLog.unshift(new Date().toLocaleTimeString() + ': ' + message);
+            if (this.debugLog.length > this.maxDebugLines) {
+                this.debugLog.pop();
+            }
+        };
+
         this.canvas = document.querySelector('canvas');
         this.ctx = this.canvas.getContext('2d');
         this.gameState = 'start'; // house, story, defend, start
@@ -554,6 +567,7 @@ class Game {
     }
 
     listenToRadio() {
+        this.debug('Radio activated');
         console.log("Attempting to play radio...");
         if (!this.sounds.radioSong) {
             console.error('Radio song not loaded');
@@ -661,6 +675,7 @@ class Game {
     }
 
     purchaseSelectedWeapon() {
+        this.debug('Attempting purchase');
         const weaponName = Object.keys(this.weaponShop)[this.shopSelection];
         const weapon = this.weaponShop[weaponName];
         
@@ -703,53 +718,57 @@ class Game {
     }
 
     update() {
-        this.checkGamepad();
-        
-        if (this.gameState === 'defend' && this.waveInProgress) {
-            // Update enemies
-            this.enemies.forEach(enemy => {
-                if (enemy.alive) {
-                    enemy.update(this.player.x);
-                    
-                    // Check collision with player - improved collision detection
-                    const dx = Math.abs(enemy.x - this.player.x);
-                    const dy = Math.abs(enemy.y - this.player.y);
-                    if (dx < (enemy.width + this.player.width) / 2 && 
-                        dy < (enemy.height + this.player.height) / 2) {
-                        this.hearts--;
-                        if (this.hearts <= 0) {
-                            this.playSound('gameOver');
-                            alert("Game Over!");
-                            this.gameState = 'house';
-                            this.switchBackgroundMusic('house');
-                            this.hearts = 15;
-                            this.currentWave = 0;
-                            this.enemies = [];
-                            this.waveInProgress = false;
+        try {
+            this.checkGamepad();
+            
+            if (this.gameState === 'defend' && this.waveInProgress) {
+                // Update enemies
+                this.enemies.forEach(enemy => {
+                    if (enemy.alive) {
+                        enemy.update(this.player.x);
+                        
+                        // Check collision with player - improved collision detection
+                        const dx = Math.abs(enemy.x - this.player.x);
+                        const dy = Math.abs(enemy.y - this.player.y);
+                        if (dx < (enemy.width + this.player.width) / 2 && 
+                            dy < (enemy.height + this.player.height) / 2) {
+                            this.hearts--;
+                            if (this.hearts <= 0) {
+                                this.playSound('gameOver');
+                                alert("Game Over!");
+                                this.gameState = 'house';
+                                this.switchBackgroundMusic('house');
+                                this.hearts = 15;
+                                this.currentWave = 0;
+                                this.enemies = [];
+                                this.waveInProgress = false;
+                            }
                         }
                     }
+                });
+
+                // Check if wave is complete
+                if (this.enemies.every(e => !e.alive)) {
+                    this.currentWave++;
+                    this.waveInProgress = false;
+                    setTimeout(() => this.startWave(), 2000);
                 }
-            });
-
-            // Check if wave is complete
-            if (this.enemies.every(e => !e.alive)) {
-                this.currentWave++;
-                this.waveInProgress = false;
-                setTimeout(() => this.startWave(), 2000);
             }
-        }
 
-        // Add touch control movement
-        if (this.touchControls.leftButton.pressed) {
-            this.player.x -= this.player.speed;
-            this.player.direction = 'left';
-        }
-        if (this.touchControls.rightButton.pressed) {
-            this.player.x += this.player.speed;
-            this.player.direction = 'right';
-        }
+            // Add touch control movement
+            if (this.touchControls.leftButton.pressed) {
+                this.player.x -= this.player.speed;
+                this.player.direction = 'left';
+            }
+            if (this.touchControls.rightButton.pressed) {
+                this.player.x += this.player.speed;
+                this.player.direction = 'right';
+            }
 
-        this.draw();
+            this.draw();
+        } catch (error) {
+            this.debug(`Error: ${error.message}`);
+        }
     }
 
     checkGamepad() {
@@ -769,38 +788,54 @@ class Game {
     }
 
     draw() {
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        
-        if (this.gameState === 'start') {
-            // Draw start screen
-            this.ctx.fillStyle = '#2c3e50';
-            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        try {
+            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
             
-            this.ctx.fillStyle = '#ecf0f1';
-            this.ctx.font = '32px Arial';
-            this.ctx.fillText('8-Bit House Defense', this.canvas.width/2 - 150, this.canvas.height/2 - 50);
+            if (this.gameState === 'start') {
+                // Draw start screen
+                this.ctx.fillStyle = '#2c3e50';
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                this.ctx.fillStyle = '#ecf0f1';
+                this.ctx.font = '32px Arial';
+                this.ctx.fillText('8-Bit House Defense', this.canvas.width/2 - 150, this.canvas.height/2 - 50);
+                
+                this.ctx.font = '24px Arial';
+                this.ctx.fillText('Click anywhere to start', this.canvas.width/2 - 100, this.canvas.height/2 + 50);
+                
+                this.ctx.font = '18px Arial';
+                this.ctx.fillText('Controls: Arrow keys to move, Space to shoot', this.canvas.width/2 - 150, this.canvas.height/2 + 100);
+                this.ctx.fillText('M to mute/unmute sound', this.canvas.width/2 - 80, this.canvas.height/2 + 130);
+                
+                return;
+            }
             
-            this.ctx.font = '24px Arial';
-            this.ctx.fillText('Click anywhere to start', this.canvas.width/2 - 100, this.canvas.height/2 + 50);
-            
-            this.ctx.font = '18px Arial';
-            this.ctx.fillText('Controls: Arrow keys to move, Space to shoot', this.canvas.width/2 - 150, this.canvas.height/2 + 100);
-            this.ctx.fillText('M to mute/unmute sound', this.canvas.width/2 - 80, this.canvas.height/2 + 130);
-            
-            return;
-        }
-        
-        if (this.gameState === 'house') {
-            this.drawHouse();
-        } else if (this.gameState === 'defend') {
-            this.drawDefendMode();
-        } else if (this.gameState === 'shop') {
-            this.drawShop();
-        }
+            if (this.gameState === 'house') {
+                this.drawHouse();
+            } else if (this.gameState === 'defend') {
+                this.drawDefendMode();
+            } else if (this.gameState === 'shop') {
+                this.drawShop();
+            }
 
-        // Draw touch controls
-        if (this.isMobileDevice()) {
-            this.drawTouchControls();
+            // Draw touch controls
+            if (this.isMobileDevice()) {
+                this.drawTouchControls();
+            }
+
+            // Draw version number
+            this.ctx.fillStyle = '#666';
+            this.ctx.font = '24px Arial';
+            this.ctx.fillText(this.version, 10, this.canvas.height - 10);
+
+            // Draw debug messages
+            this.ctx.fillStyle = '#ff0';
+            this.ctx.font = '20px Arial';
+            this.debugLog.forEach((msg, i) => {
+                this.ctx.fillText(msg, 10, 30 + (i * 25));
+            });
+        } catch (error) {
+            this.debug(`Draw error: ${error.message}`);
         }
     }
 
@@ -1235,7 +1270,7 @@ class Game {
     }
 
     setupTouchControls() {
-        console.log('Setting up touch controls');
+        this.debug('Setting up touch controls');
         
         const handleTouch = (e) => {
             e.preventDefault();
@@ -1246,6 +1281,14 @@ class Game {
             const scaleX = this.canvas.width / rect.width;
             const scaleY = this.canvas.height / rect.height;
             
+            // Debug touch coordinates
+            if (touches.length > 0) {
+                const touch = touches[0];
+                const x = (touch.clientX - rect.left) * scaleX;
+                const y = (touch.clientY - rect.top) * scaleY;
+                this.debug(`Touch at: ${Math.round(x)},${Math.round(y)}`);
+            }
+
             // Reset button states
             this.touchControls.leftButton.pressed = false;
             this.touchControls.rightButton.pressed = false;
@@ -1321,6 +1364,7 @@ class Game {
     }
 
     handleAction() {
+        this.debug('Action triggered');
         // This method is no longer needed
     }
 
