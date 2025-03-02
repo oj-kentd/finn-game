@@ -3,7 +3,7 @@ class Game {
     constructor() {
         // ----
         // (DO NOT DELETE THIS LINE)
-        this.version = "v0.9.6"; // Increment version for every update (DO NOT DELETE THIS LINE)
+        this.version = "v0.9.8"; // Increment version for every update (DO NOT DELETE THIS LINE)
         this.version += ` (${new Date().toISOString().slice(0, 19)})`;
         // ----
 
@@ -232,6 +232,9 @@ class Game {
         
         // Track last play time for each sound
         this.lastSoundPlayed = {};
+        
+        // Track active sound instances
+        this.activeSounds = {};
 
         // Update enemy base stats for better scaling
         this.enemyBaseStats = {
@@ -288,6 +291,9 @@ class Game {
         // Load boss sprite
         this.bossSprite = new Image();
         this.bossSprite.src = './sprites/boss.png';
+        
+        // Add rate limiting for fire button
+        this.lastFired = 0;
     }
 
     startGame() {
@@ -809,6 +815,22 @@ class Game {
 
     shoot() {
         if (!this.selectedWeapon) return;
+        
+        // Add rate limiting for shooting
+        const now = Date.now();
+        if (this.selectedWeapon) {
+            const weapon = this.weaponShop[this.selectedWeapon];
+            // Calculate minimum time between shots based on weapon fire rate
+            const minTimeBetweenShots = 1000 / weapon.fireRate;
+            
+            // Check if enough time has passed since last shot
+            if (now - this.lastFired < minTimeBetweenShots) {
+                return; // Exit if firing too rapidly
+            }
+            
+            // Update last fired timestamp
+            this.lastFired = now;
+        }
         
         this.playWeaponSound();
         this.shootingAnimation.active = true;
@@ -1459,7 +1481,7 @@ class Game {
         }
     }
 
-    // Update playSound method to check if audio is ready
+    // Updated playSound method to prevent overlapping sounds
     playSound(soundName) {
         if (!this.audioInitialized || !this.soundsEnabled || !this.sounds) {
             return;
@@ -1478,18 +1500,34 @@ class Game {
             if (soundName.includes('.')) {
                 const [category, name] = soundName.split('.');
                 if (this.sounds[category]?.[name]) {
-                    // Stop any existing instances of this sound
-                    if (this.sounds[category][name].isPlaying) {
-                        this.sounds[category][name].pause();
-                        this.sounds[category][name].currentTime = 0;
+                    // For weapon sounds, ensure previous instance is done before playing again
+                    if (category === 'shoot' && this.activeSounds[soundName]) {
+                        // If it's still playing, don't start a new sound
+                        if (!this.activeSounds[soundName].ended) {
+                            return;
+                        }
                     }
+                    
+                    // Create a new sound instance
                     const sound = this.sounds[category][name].cloneNode();
                     sound.volume = this.sounds[category][name]._originalVolume;
+                    
+                    // Store the active sound instance
+                    this.activeSounds[soundName] = sound;
+                    
+                    // Add event listener to clean up after playback ends
+                    sound.addEventListener('ended', () => {
+                        delete this.activeSounds[soundName];
+                    }, { once: true });
+                    
                     sound.play()
                         .then(() => {
                             this.lastSoundPlayed[soundName] = now;
                         })
-                        .catch(e => console.error(`Failed to play ${category}.${name}:`, e));
+                        .catch(e => {
+                            console.error(`Failed to play ${category}.${name}:`, e);
+                            delete this.activeSounds[soundName];
+                        });
                 }
             } else if (this.sounds[soundName]) {
                 if (soundName.includes('Bgm') || soundName === 'radioSong') {
@@ -1497,12 +1535,28 @@ class Game {
                     this.sounds[soundName].play()
                         .catch(e => console.error(`Failed to play ${soundName}:`, e));
                 } else {
+                    // For other sound effects
+                    if (this.activeSounds[soundName] && !this.activeSounds[soundName].ended) {
+                        // If the sound is still playing, don't start a new one
+                        return;
+                    }
+                    
                     const sound = this.sounds[soundName].cloneNode();
+                    this.activeSounds[soundName] = sound;
+                    
+                    // Clean up after playback ends
+                    sound.addEventListener('ended', () => {
+                        delete this.activeSounds[soundName];
+                    }, { once: true });
+                    
                     sound.play()
                         .then(() => {
                             this.lastSoundPlayed[soundName] = now;
                         })
-                        .catch(e => console.error(`Failed to play ${soundName}:`, e));
+                        .catch(e => {
+                            console.error(`Failed to play ${soundName}:`, e);
+                            delete this.activeSounds[soundName];
+                        });
                 }
             }
         } catch (error) {
@@ -1510,11 +1564,13 @@ class Game {
         }
     }
 
+    // Updated weapon sound method to handle weapon-specific sound behavior
     playWeaponSound() {
-        if (this.selectedWeapon) {
-            const soundName = `shoot.${this.selectedWeapon}`;
-            this.playSound(soundName);
-        }
+        if (!this.selectedWeapon) return;
+        
+        const soundName = `shoot.${this.selectedWeapon}`;
+        // Play sound with non-overlapping behavior
+        this.playSound(soundName);
     }
 
     drawOakTree() {
@@ -1688,12 +1744,27 @@ class Game {
                         }
                         if (this.isInsideCircle(x, y, this.touchControls.shootButton)) {
                             this.touchControls.shootButton.pressed = true;
-                            // Start continuous shooting at 2x speed
+                            this.touchControls.shootButton.lastPressed = Date.now();
+                            
+                            // Start continuous shooting with proper rate limiting
                             if (this.selectedWeapon) {
                                 const weapon = this.weaponShop[this.selectedWeapon];
-                                const fireInterval = 500 / weapon.fireRate; // Double the fire rate (half the interval)
-                                this.shoot(); // Initial shot
-                                shootInterval = setInterval(() => this.shoot(), fireInterval);
+                                // Use weapon's actual fire rate instead of arbitrary doubled rate
+                                const fireInterval = 1000 / weapon.fireRate; 
+                                
+                                // Initial shot (respects rate limiting)
+                                this.shoot();
+                                
+                                // Clear any existing interval first to avoid multiple intervals
+                                if (shootInterval) {
+                                    clearInterval(shootInterval);
+                                }
+                                
+                                // Set up new interval with proper weapon fire rate
+                                shootInterval = setInterval(() => {
+                                    // The shoot function now handles its own rate limiting
+                                    this.shoot();
+                                }, fireInterval);
                             }
                         }
                         if (this.isInsideCircle(x, y, this.touchControls.actionButton)) {
@@ -1872,6 +1943,19 @@ class Game {
     }
 
     gameOver() {
+        // Stop all active sounds first
+        Object.values(this.activeSounds).forEach(sound => {
+            try {
+                if (sound && typeof sound.pause === 'function') {
+                    sound.pause();
+                    sound.currentTime = 0;
+                }
+            } catch (e) {
+                console.error('Error stopping sound:', e);
+            }
+        });
+        this.activeSounds = {};
+        
         this.playSound('gameOver');
         alert("Game Over!");
         this.gameState = 'house';
@@ -1887,4 +1971,4 @@ class Game {
         this.boss.projectiles = [];
         this.resetTouchControls();
     }
-} 
+}
