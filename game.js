@@ -1,9 +1,9 @@
 // Main game class
 class Game {
     constructor() {
-        this.version = "v0.8.6"; // Increment this when making changes (DO NOT DELETE THIS LINE)
+        this.version = "v0.8.7"; // Increment this when making changes (DO NOT DELETE THIS LINE)
         this.debugLog = [];      // Store debug messages
-        this.maxDebugLines = 5;  // Number of debug lines to show
+        this.maxDebugLines = 20;  // Number of debug lines to show
 
         // Add debug helper method
         this.debug = (message) => {
@@ -815,17 +815,20 @@ class Game {
                 this.drawTouchControls();
             }
 
-            // Draw version number
+            // Draw debug messages in top right corner
+            this.ctx.fillStyle = '#ff0';
+            this.ctx.font = '24px Arial'; // Increased from 20px
+            this.debugLog.forEach((msg, i) => {
+                this.ctx.fillText(msg, 
+                    this.canvas.width - 600, // Move to right side
+                    50 + (i * 30)  // Increased spacing between lines
+                );
+            });
+
+            // Draw version number (keep at bottom left)
             this.ctx.fillStyle = '#666';
             this.ctx.font = '24px Arial';
-            this.ctx.fillText(this.version, this.canvas.width - 100, this.canvas.height - 10);
-
-            // Draw debug messages
-            this.ctx.fillStyle = '#ff0';
-            this.ctx.font = '20px Arial';
-            this.debugLog.forEach((msg, i) => {
-                this.ctx.fillText(msg, 10, 30 + (i * 25));
-            });
+            this.ctx.fillText(this.version, 10, this.canvas.height - 10);
         } catch (error) {
             this.debug(`Draw error: ${error.message}`);
         }
@@ -839,16 +842,14 @@ class Game {
         this.ctx.font = '48px Arial';
         this.ctx.fillText('Click or Touch Anywhere to Start', this.canvas.width/2 - 300, this.canvas.height/2);
 
-        // Add version number in bottom right
-        this.ctx.fillStyle = '#666';
-        this.ctx.font = '24px Arial';
-        this.ctx.fillText(this.version, this.canvas.width - 100, this.canvas.height - 10);
-
-        // Add debug messages even on start screen
+        // Draw debug messages in top right on start screen too
         this.ctx.fillStyle = '#ff0';
-        this.ctx.font = '20px Arial';
+        this.ctx.font = '24px Arial';
         this.debugLog.forEach((msg, i) => {
-            this.ctx.fillText(msg, 10, 30 + (i * 25));
+            this.ctx.fillText(msg, 
+                this.canvas.width - 600,
+                50 + (i * 30)
+            );
         });
     }
 
