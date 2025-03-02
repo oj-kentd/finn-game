@@ -1,7 +1,7 @@
 // Main game class
 class Game {
     constructor() {
-        this.version = "v0.8.13"; // Increment version (DO NOT DELETE THIS LINE)
+        this.version = "v0.8.23"; // Increment version
         // Add timestamp to version for absolute cache busting
         this.version += ` (${new Date().toISOString().slice(0, 19)})`;
         this.debugLog = [];      // Store debug messages
@@ -40,13 +40,38 @@ class Game {
         this.playerSprite = new Image();
         this.playerSprite.src = './sprites/player.png';  // Green character sprite
 
-        const groundHeight = 200;  // Define ground height as a class property
+        // Initialize game objects
+        this.initializeGameObjects();
+        
+        // Initialize UI system
+        this.initializeUI();
+        
+        // Initialize controls
+        this.pressedButtons = {
+            left: false,
+            right: false
+        };
+
+        // Setup event handlers
+        this.setupTouchControls();
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'M' || e.key === 'm') {
+                this.toggleSound();
+            }
+        });
+
+        // Start game loop
+        this.startGameLoop();
+    }
+
+    initializeGameObjects() {
+        // Initialize game objects with proper relative positioning
+        const groundHeight = 200;
         this.groundHeight = groundHeight;
 
-        // Update player position to be on the ground
         this.player = {
             x: 200,
-            y: this.canvas.height - groundHeight - (32 * 4),  // groundHeight + sprite height * scale
+            y: this.canvas.height - groundHeight - (32 * 4),
             width: this.spriteConfig.width * this.spriteConfig.scale,
             height: this.spriteConfig.height * this.spriteConfig.scale,
             speed: 10,
@@ -54,13 +79,26 @@ class Game {
             hasWeapon: false
         };
 
-        // Update house dimensions and position
         this.house = {
             x: 0,
-            y: this.canvas.height - 400,  // Adjust height
-            width: 300,                   // Wider house
-            height: 400                   // Taller house
+            y: this.canvas.height - 400,
+            width: 300,
+            height: 400
         };
+
+        this.oakTree = {
+            x: this.canvas.width - 400,
+            y: this.canvas.height - 600,
+            width: 300,
+            height: 600,
+            scrollFound: false
+        };
+
+        // Initialize game state
+        this.currentWave = 0;
+        this.enemies = [];
+        this.waveInProgress = false;
+        this.totalWaves = 9;
 
         this.weaponShop = {
             minigun: { name: 'Minigun', price: 100, damage: 20 },
@@ -70,28 +108,6 @@ class Game {
             pistol: { name: 'Pistol', price: 100, damage: 2 },
             sniper3000: { name: 'Sniper3000', price: 0, damage: 100, secret: true }
         };
-
-        // Add new properties for defend mode
-        this.currentWave = 0;
-        this.enemies = [];
-        this.waveInProgress = false;
-        this.totalWaves = 9;
-        
-        // Wave configurations
-        this.waveConfigs = [
-            { zombie: 3, skeleton: 0, snake: 0, monster: 0, vampire: 0 },
-            { zombie: 3, skeleton: 2, snake: 0, monster: 0, vampire: 0 },
-            { zombie: 4, skeleton: 2, snake: 1, monster: 0, vampire: 0 },
-            { zombie: 4, skeleton: 3, snake: 2, monster: 1, vampire: 0 },
-            { zombie: 5, skeleton: 3, snake: 2, monster: 1, vampire: 1 },
-            { zombie: 5, skeleton: 4, snake: 3, monster: 2, vampire: 1 },
-            { zombie: 6, skeleton: 4, snake: 3, monster: 2, vampire: 2 },
-            { zombie: 6, skeleton: 5, snake: 4, monster: 3, vampire: 2 },
-            { zombie: 7, skeleton: 5, snake: 4, monster: 3, vampire: 3 }
-        ];
-
-        // Add shop state
-        this.shopSelection = 0;  // Current selected weapon index
 
         // Simplify enemy sprite configurations to use direct sprites
         this.enemySprites = {
@@ -137,176 +153,7 @@ class Game {
             maxFrames: 10
         };
 
-        // Update start screen interaction to be more touch-friendly
-        const startGame = async (e) => {
-            e.preventDefault(); // Prevent default behavior
-            e.stopPropagation(); // Stop event bubbling
-            
-            if (this.gameState === 'start') {
-                try {
-                    // Force touch events to be enabled
-                    this.touchEnabled = true;
-                    
-                    // Create audio context immediately
-                    const AudioContext = window.AudioContext || window.webkitAudioContext;
-                    this.audioContext = new AudioContext();
-                    
-                    // Force unlock audio
-                    await this.unlockAudioContext(this.audioContext);
-                    
-                    // Initialize audio system
-                    this.initializeAudio();
-                    
-                    // Change game state
-                    this.gameState = 'house';
-                    
-                    // Remove all start screen listeners
-                    ['touchstart', 'touchend', 'click'].forEach(event => {
-                        this.canvas.removeEventListener(event, startGame);
-                    });
-
-                    // Initialize touch controls immediately
-                    this.setupTouchControls();
-                } catch (error) {
-                    console.error('Error starting game:', error);
-                    // Fallback - proceed without audio
-                    this.gameState = 'house';
-                    this.setupTouchControls();
-                }
-            }
-        };
-
-        // Add all possible event listeners for starting
-        ['touchstart', 'touchend', 'click'].forEach(event => {
-            this.canvas.addEventListener(event, startGame, { passive: false });
-        });
-
-        // Don't initialize audio yet, just load the configurations
-        this.soundConfigs = {
-            // Background music - reduced to 30% of original volume
-            houseBgm: { 
-                url: './sounds/house.mp3',
-                volume: 0.15,  // Was 0.3
-                loop: true 
-            },
-            defendBgm: { 
-                url: './sounds/defend.mp3',
-                volume: 0.15,  // Was 0.3
-                loop: true 
-            },
-            radioSong: {
-                url: './sounds/radio.mp3',
-                volume: 0.25   // Was 0.5
-            },
-            
-            // Weapon sounds - reduced to 25% of original volume
-            'shoot.minigun': { 
-                url: './sounds/minigun.mp3',
-                volume: 0.1    // Was 0.4
-            },
-            'shoot.bat': { 
-                url: './sounds/bat.mp3',
-                volume: 0.1    // Was 0.4
-            },
-            'shoot.laserGun': { 
-                url: './sounds/laser.mp3',
-                volume: 0.1    // Was 0.4
-            },
-            'shoot.rpg': { 
-                url: './sounds/rpg.mp3',
-                volume: 0.1    // Was 0.4
-            },
-            'shoot.pistol': { 
-                url: './sounds/pistol.mp3',
-                volume: 0.1    // Was 0.4
-            },
-            
-            // Game effects - keep these at current volume
-            enemyDeath: { 
-                url: './sounds/enemy-death.mp3',
-                volume: 0.5 
-            },
-            playerHit: { 
-                url: './sounds/player-hit.mp3',
-                volume: 0.5 
-            },
-            purchase: { 
-                url: './sounds/purchase.mp3',
-                volume: 0.5 
-            },
-            noMoney: { 
-                url: './sounds/no-money.mp3',
-                volume: 0.5 
-            },
-            waveStart: { 
-                url: './sounds/wave-start.mp3',
-                volume: 0.5 
-            },
-            victory: { 
-                url: './sounds/victory.mp3',
-                volume: 0.6 
-            },
-            gameOver: { 
-                url: './sounds/game-over.mp3',
-                volume: 0.6 
-            }
-        };
-
-        // Add mute/unmute controls
-        window.addEventListener('keydown', (e) => {
-            if (e.key === 'M' || e.key === 'm') {
-                this.toggleSound();
-            }
-        });
-
-        // Setup event listeners
-        this.setupControls();
-        this.setupGamepad();
-
-        // Start the game loop immediately, but don't play sounds yet
-        this.startGameLoop();
-
-        // Update oak tree position and size
-        this.oakTree = {
-            x: this.canvas.width - 400,   // Position from right
-            y: this.canvas.height - 600,  // Taller tree
-            width: 300,                   // Wider tree
-            height: 600,                  // Taller tree
-            scrollFound: false
-        };
-
-        // Add touch control properties
-        this.touchControls = {
-            leftButton: {
-                x: 50,
-                y: this.canvas.height - 150,
-                radius: 40,
-                pressed: false
-            },
-            rightButton: {
-                x: 150,
-                y: this.canvas.height - 150,
-                radius: 40,
-                pressed: false
-            },
-            shootButton: {
-                x: this.canvas.width - 100,
-                y: this.canvas.height - 150,
-                radius: 50,
-                pressed: false
-            },
-            actionButton: {
-                x: this.canvas.width - 200,
-                y: this.canvas.height - 150,
-                radius: 40,
-                pressed: false
-            }
-        };
-
-        // Add touch event listeners
-        this.setupTouchControls();
-
-        // Add sound cooldown system
+        // Add sound cooldowns system
         this.soundCooldowns = {
             'shoot.minigun': 100,  // 100ms cooldown for minigun
             'shoot.bat': 200,      // 200ms cooldown for bat
@@ -320,38 +167,6 @@ class Game {
         // Track last play time for each sound
         this.lastSoundPlayed = {};
 
-        // Update menu touch controls with adjusted positions
-        this.menuControls = {
-            shopButton: {
-                x: 40,
-                y: this.canvas.height * 0.1, // Position at 10% of canvas height
-                width: 300,  // Make buttons wider
-                height: 80,  // Make buttons taller
-                text: '1: Shop'
-            },
-            radioButton: {
-                x: 40,
-                y: this.canvas.height * 0.2, // Position at 20% of canvas height
-                width: 300,
-                height: 80,
-                text: '2: Listen to Radio'
-            },
-            defendButton: {
-                x: 40,
-                y: this.canvas.height * 0.3, // Position at 30% of canvas height
-                width: 300,
-                height: 80,
-                text: '3: Start Defend Mode'
-            },
-            backButton: {
-                x: 40,  // Was 100
-                y: this.canvas.height - 100,
-                width: 200,
-                height: 60,
-                text: 'Back to House'
-            }
-        };
-
         // Add uniform scaling helper
         this.getUniformScale = () => {
             const rect = this.canvas.getBoundingClientRect();
@@ -361,6 +176,36 @@ class Game {
                 this.canvas.height / rect.height
             );
         };
+    }
+
+    setupTouchControls() {
+        const handleTouch = (e) => {
+            e.preventDefault();
+            if (!e.touches.length) return;
+            
+            const touch = e.touches[0];
+            const pos = this.screenToRelative(touch.clientX, touch.clientY);
+            
+            // Handle all UI interactions through the new system
+            const regions = this.getActiveRegions();
+            for (const region of regions) {
+                const buttons = this.getButtonsForRegion(region);
+                for (const button of buttons) {
+                    if (this.isInRegion(pos, button, region)) {
+                        this.handleButton(button);
+                        if (!button.isControl) return;
+                    }
+                }
+            }
+        };
+
+        const handleTouchEnd = () => {
+            this.pressedButtons.left = false;
+            this.pressedButtons.right = false;
+        };
+
+        this.canvas.addEventListener('touchstart', handleTouch, { passive: false });
+        this.canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
     }
 
     toggleSound() {
@@ -768,11 +613,11 @@ class Game {
             }
 
             // Add touch control movement
-            if (this.touchControls.leftButton.pressed) {
+            if (this.pressedButtons.left && this.player.x > this.house.width) {
                 this.player.x -= this.player.speed;
                 this.player.direction = 'left';
             }
-            if (this.touchControls.rightButton.pressed) {
+            if (this.pressedButtons.right && this.player.x < this.canvas.width - this.player.width) {
                 this.player.x += this.player.speed;
                 this.player.direction = 'right';
             }
@@ -803,32 +648,26 @@ class Game {
         try {
             this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
             
-            if (this.gameState === 'start') {
-                this.drawStartScreen();
-            } else if (this.gameState === 'house') {
-                this.drawHouse();
-            } else if (this.gameState === 'defend') {
-                this.drawDefendMode();
-            } else if (this.gameState === 'shop') {
-                this.drawShop();
+            // Draw game state specific elements
+            switch(this.gameState) {
+                case 'start':
+                    this.drawStartScreen();
+                    break;
+                case 'house':
+                    this.drawHouse();
+                    break;
+                case 'defend':
+                    this.drawDefendMode();
+                    break;
+                case 'shop':
+                    this.drawShop();
+                    break;
             }
 
-            // Draw touch controls
-            if (this.isMobileDevice()) {
-                this.drawTouchControls();
-            }
+            // Draw UI on top
+            this.drawUI();
 
-            // Draw debug messages in top right corner
-            this.ctx.fillStyle = '#ff0';
-            this.ctx.font = '24px Arial'; // Increased from 20px
-            this.debugLog.forEach((msg, i) => {
-                this.ctx.fillText(msg, 
-                    this.canvas.width - 600, // Move to right side
-                    50 + (i * 30)  // Increased spacing between lines
-                );
-            });
-
-            // Draw version number (keep at bottom left)
+            // Draw version at bottom
             this.ctx.fillStyle = '#666';
             this.ctx.font = '24px Arial';
             this.ctx.fillText(this.version, 10, this.canvas.height - 10);
@@ -838,304 +677,135 @@ class Game {
     }
 
     drawStartScreen() {
+        // Draw background
         this.ctx.fillStyle = '#2c3e50';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         
+        // Draw title
         this.ctx.fillStyle = '#ecf0f1';
-        this.ctx.font = '48px Arial';
-        this.ctx.fillText('Click or Touch Anywhere to Start', this.canvas.width/2 - 300, this.canvas.height/2);
+        this.ctx.font = '64px Arial';
+        this.ctx.fillText('8-Bit House Defense', 
+            this.canvas.width/2 - 300, 
+            this.canvas.height/3
+        );
 
-        // Draw debug messages in top right on start screen too
-        this.ctx.fillStyle = '#ff0';
-        this.ctx.font = '24px Arial';
-        this.debugLog.forEach((msg, i) => {
-            this.ctx.fillText(msg, 
-                this.canvas.width - 600,
-                50 + (i * 30)
-            );
+        // Draw start button using UI system
+        const startRegion = this.ui.start;
+        startRegion.buttons.forEach(button => {
+            this.drawButton(button, startRegion);
         });
     }
 
     drawHouse() {
+        // Draw background
         this.ctx.fillStyle = '#8b4513';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
+        // Draw stats
         this.ctx.fillStyle = 'white';
-        this.ctx.font = '40px Arial';  // Was 20px
+        this.ctx.font = '40px Arial';
         this.ctx.fillText(`Coins: ${this.coins}`, 40, 60);
-
-        // Draw menu buttons with debug outlines
-        this.ctx.fillStyle = '#4a6fa5';
-        this.ctx.globalAlpha = 0.8;
-
-        Object.entries(this.menuControls).forEach(([name, button]) => {
-            if (button === this.menuControls.defendButton && !this.player.hasWeapon) {
-                return;
-            }
-            if (button === this.menuControls.backButton) {
-                return;
-            }
-
-            // Draw button background
-            this.ctx.fillRect(button.x, button.y, button.width, button.height);
-            
-            // Draw button text
-            this.ctx.fillStyle = 'white';
-            this.ctx.font = '32px Arial';
-            this.ctx.fillText(button.text, button.x + 20, button.y + 40);
-            
-            // Draw debug outline and coordinates
-            this.ctx.strokeStyle = '#ff0';
-            this.ctx.lineWidth = 2;
-            this.ctx.strokeRect(button.x, button.y, button.width, button.height);
-            
-            // Draw debug coordinates
-            this.ctx.fillStyle = '#ff0';
-            this.ctx.font = '12px Arial';
-            this.ctx.fillText(`${Math.round(button.x)},${Math.round(button.y)}`, button.x, button.y - 5);
-            
-            this.ctx.fillStyle = '#4a6fa5';
-        });
-
-        this.ctx.globalAlpha = 1.0;
-    }
-
-    drawDefendMode() {
-        // Draw night sky background
-        this.ctx.fillStyle = '#000033';
-        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-        
-        // Draw stars
-        for(let i = 0; i < 50; i++) {
-            this.ctx.fillStyle = '#ffffff';
-            this.ctx.fillRect(
-                (Math.sin(i + this.currentWave) * this.canvas.width + this.canvas.width) % this.canvas.width,
-                (Math.cos(i) * this.canvas.height/2 + this.canvas.height/2) % this.canvas.height,
-                2,
-                2
-            );
-        }
-
-        // Draw detailed house
-        this.drawDetailedHouse();
-
-        // Draw ground
-        this.ctx.fillStyle = '#663300';
-        this.ctx.fillRect(0, this.canvas.height - this.groundHeight, this.canvas.width, this.groundHeight);
-        
-        // Ground texture
-        for(let i = 0; i < this.canvas.width; i += 80) {
-            this.ctx.fillStyle = '#552200';
-            this.ctx.fillRect(i, this.canvas.height - this.groundHeight, 40, 20);
-        }
+        this.ctx.fillText(`Hearts: ${this.hearts}`, 40, 110);
 
         // Draw oak tree
         this.drawOakTree();
 
-        // Draw player
-        if (this.playerSprite.complete) {
-            this.drawSprite(
-                this.playerSprite,
-                this.player.x,
-                this.player.y,
-                this.player.direction
-            );
-        }
+        // UI buttons are drawn by drawUI()
+    }
 
-        // Draw shooting animation if active
+    drawDefendMode() {
+        // Draw background
+        this.ctx.fillStyle = '#2c3e50';
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+        // Draw ground
+        this.ctx.fillStyle = '#8b4513';
+        this.ctx.fillRect(0, this.canvas.height - this.groundHeight, this.canvas.width, this.groundHeight);
+
+        // Draw house
+        this.ctx.fillStyle = '#4a6fa5';
+        this.ctx.fillRect(this.house.x, this.house.y, this.house.width, this.house.height);
+
+        // Draw player
+        this.drawSprite(this.playerSprite, this.player.x, this.player.y, this.player.direction);
+
+        // Draw shooting effect
         if (this.shootingAnimation.active) {
-            this.drawShootingEffect();
+            const weaponConfig = {
+                minigun: { color: '#ff0000', width: 2, range: 400 },
+                bat: { color: '#8b4513', width: 2, range: 400 },
+                laserGun: { color: '#00ff00', width: 2, range: this.canvas.width },
+                rpg: { color: '#ff6600', width: 2, range: 400 },
+                pistol: { color: '#ffff00', width: 2, range: 400 },
+                sniper3000: { color: '#00ffff', width: 4, range: this.canvas.width }
+            }[this.selectedWeapon] || { color: '#fff', width: 2, range: 400 };
+
+            this.ctx.strokeStyle = weaponConfig.color;
+            this.ctx.lineWidth = weaponConfig.width;
+            this.ctx.beginPath();
+            
+            const startX = this.player.direction === 'right' ? 
+                this.player.x + this.player.width : 
+                this.player.x;
+            const endX = this.player.direction === 'right' ? 
+                startX + weaponConfig.range : 
+                startX - weaponConfig.range;
+
+            this.ctx.moveTo(startX, this.player.y + this.player.height/2);
+            this.ctx.lineTo(endX, this.player.y + this.player.height/2);
+            this.ctx.stroke();
         }
 
         // Draw enemies
         this.enemies.forEach(enemy => {
-            if (enemy.alive && this.loadedSprites[enemy.type]?.complete) {
-                const direction = enemy.x > this.player.x ? 'left' : 'right';
-                this.drawSprite(
-                    this.loadedSprites[enemy.type],
-                    enemy.x,
-                    enemy.y,
-                    direction
-                );
-
-                // Draw health bar above enemy
+            if (enemy.alive) {
+                this.drawSprite(this.loadedSprites[enemy.type], enemy.x, enemy.y, enemy.direction);
+                
+                // Draw health bar
                 const healthPercentage = enemy.health / 100;
-                this.ctx.fillStyle = 'red';
+                this.ctx.fillStyle = '#f00';
                 this.ctx.fillRect(
                     enemy.x, 
-                    enemy.y - 20,  // Moved health bar up a bit
+                    enemy.y - 20,
                     this.spriteConfig.width * this.spriteConfig.scale * healthPercentage,
-                    8  // Made health bar thicker
+                    8
                 );
             }
         });
 
-        // Check if player is near the tree and hasn't found the scroll
-        if (!this.oakTree.scrollFound && 
-            Math.abs(this.player.x - (this.oakTree.x + 150)) < 100) {  // Adjusted position for larger tree
-            this.findSecretScroll();
-        }
-
-        // Update UI text
+        // Draw stats
         this.ctx.fillStyle = 'white';
-        this.ctx.font = '40px Arial';  // Was 20px
+        this.ctx.font = '40px Arial';
         this.ctx.fillText(`Wave: ${this.currentWave + 1}/${this.totalWaves}`, 40, 60);
-        this.ctx.fillText(`Hearts: ${this.hearts}`, 40, 120);
-        
+        this.ctx.fillText(`Hearts: ${this.hearts}`, 40, 110);
         if (this.selectedWeapon) {
-            this.ctx.fillText(`Weapon: ${this.weaponShop[this.selectedWeapon].name}`, 40, 180);
-        }
-    }
-
-    drawDetailedHouse() {
-        // Main house structure
-        this.ctx.fillStyle = '#8B4513';
-        this.ctx.fillRect(this.house.x, this.house.y, this.house.width, this.house.height);
-        
-        // Roof
-        this.ctx.fillStyle = '#A52A2A';
-        this.ctx.beginPath();
-        this.ctx.moveTo(this.house.x, this.house.y);
-        this.ctx.lineTo(this.house.x + this.house.width/2, this.house.y - 100);
-        this.ctx.lineTo(this.house.x + this.house.width, this.house.y);
-        this.ctx.fill();
-
-        // Window
-        this.ctx.fillStyle = '#FFF8DC';
-        this.ctx.fillRect(this.house.x + 40, this.house.y + 60, 80, 80);
-        this.ctx.strokeStyle = '#8B4513';
-        this.ctx.lineWidth = 4;
-        this.ctx.strokeRect(this.house.x + 40, this.house.y + 60, 80, 80);
-
-        // Door
-        this.ctx.fillStyle = '#4A3000';
-        this.ctx.fillRect(this.house.x + 180, this.house.y + 200, 80, 160);
-        this.ctx.fillStyle = '#FFD700';
-        this.ctx.beginPath();
-        this.ctx.arc(this.house.x + 240, this.house.y + 280, 8, 0, Math.PI * 2);
-        this.ctx.fill();
-    }
-
-    drawShootingEffect() {
-        if (this.shootingAnimation.active) {
-            const weaponColor = {
-                minigun: '#ff0000',
-                bat: '#8b4513',
-                laserGun: '#00ff00',
-                rpg: '#ff6600',
-                pistol: '#ffff00',
-                sniper3000: '#00ffff'  // Cyan color for sniper
-            }[this.selectedWeapon];
-
-            this.ctx.strokeStyle = weaponColor;
-            this.ctx.lineWidth = 2;
-            this.ctx.beginPath();
-
-            // Adjust shooting position based on player direction
-            const shootStartX = this.player.direction === 'right' ? 
-                this.player.x + this.player.width : 
-                this.player.x;
-
-            this.ctx.moveTo(shootStartX, this.player.y + this.player.height/2);
-            
-            // Create weapon-specific effects
-            switch(this.selectedWeapon) {
-                case 'laserGun':
-                    this.ctx.lineTo(
-                        this.player.direction === 'right' ? this.canvas.width : 0,
-                        this.player.y + this.player.height/2
-                    );
-                    break;
-                case 'minigun':
-                    for(let i = 0; i < 3; i++) {
-                        this.ctx.moveTo(shootStartX, this.player.y + this.player.height/2);
-                        const targetX = this.player.direction === 'right' ?
-                            shootStartX + 400 :
-                            shootStartX - 400;
-                        this.ctx.lineTo(
-                            targetX,
-                            this.player.y + this.player.height/2 + Math.sin(this.shootingAnimation.frame + i) * 20
-                        );
-                    }
-                    break;
-                case 'sniper3000':
-                    this.ctx.lineWidth = 4;
-                    this.ctx.shadowColor = weaponColor;
-                    this.ctx.shadowBlur = 10;
-                    this.ctx.lineTo(
-                        this.player.direction === 'right' ? this.canvas.width : 0,
-                        this.player.y + this.player.height/2
-                    );
-                    this.ctx.shadowBlur = 0;
-                    break;
-                default:
-                    const targetX = this.player.direction === 'right' ?
-                        shootStartX + 400 :
-                        shootStartX - 400;
-                    this.ctx.lineTo(targetX, this.player.y + this.player.height/2);
-            }
-
-            this.ctx.stroke();
-
-            this.shootingAnimation.frame++;
-            if (this.shootingAnimation.frame >= this.shootingAnimation.maxFrames) {
-                this.shootingAnimation.active = false;
-                this.shootingAnimation.frame = 0;
-            }
+            this.ctx.fillText(`Weapon: ${this.weaponShop[this.selectedWeapon].name}`, 40, 160);
         }
     }
 
     drawShop() {
+        // Draw background
         this.ctx.fillStyle = '#2c3e50';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
+        // Draw header
         this.ctx.fillStyle = '#ecf0f1';
-        this.ctx.font = '64px Arial';  // Was 32px
+        this.ctx.font = '64px Arial';
         this.ctx.fillText('WEAPON SHOP', this.canvas.width/2 - 200, 100);
 
-        this.ctx.font = '48px Arial';  // Was 24px
+        // Draw coins
+        this.ctx.font = '48px Arial';
         this.ctx.fillText(`Coins: ${this.coins}`, 40, 80);
 
-        // Draw back button
-        this.ctx.fillStyle = '#4a6fa5';
-        this.ctx.globalAlpha = 0.8;
-        const backButton = this.menuControls.backButton;
-        this.ctx.fillRect(backButton.x, backButton.y, backButton.width, backButton.height);
-        this.ctx.fillStyle = 'white';
-        this.ctx.font = '32px Arial';
-        this.ctx.fillText(backButton.text, backButton.x + 20, backButton.y + 40);
-        this.ctx.globalAlpha = 1.0;
-
-        // Draw weapon selection buttons
-        let y = 240;
-        Object.entries(this.weaponShop).forEach(([key, weapon], index) => {
-            if (weapon.secret && !this.oakTree.scrollFound) return;
-
-            this.ctx.fillStyle = index === this.shopSelection ? '#f1c40f' : '#4a6fa5';
-            this.ctx.globalAlpha = 0.8;
-            this.ctx.fillRect(100, y - 40, this.canvas.width - 200, 60);
-            
-            this.ctx.fillStyle = '#ffffff';
-            let text = `${weapon.name} - ${weapon.price} coins (Damage: ${weapon.damage})`;
-            if (weapon.secret) {
-                text += ' [LEGENDARY]';
-                this.ctx.fillStyle = '#FFD700';
-            }
-            this.ctx.fillText(text, 120, y);
-            y += 100;
-        });
-
+        // Draw instructions
         this.ctx.fillStyle = '#bdc3c7';
-        this.ctx.font = '36px Arial';  // Was 18px
+        this.ctx.font = '36px Arial';
         this.ctx.fillText('↑↓: Select weapon | Enter: Purchase | Esc: Exit shop', 
             this.canvas.width/2 - 400, 
             this.canvas.height - 60
         );
-    }
 
-    // Separate game loop start from audio start
-    startGameLoop() {
-        setInterval(() => this.update(), 1000/60);
+        // UI buttons are now drawn by drawUI()
     }
 
     // Update the switchBackgroundMusic method to check if audio is ready
@@ -1300,131 +970,93 @@ class Game {
         }
     }
 
-    setupTouchControls() {
-        const handleTouch = (e) => {
-            e.preventDefault();
+    drawUI() {
+        // Draw menu buttons if in appropriate state
+        if (this.gameState === 'house' || this.gameState === 'shop') {
+            const menuRegion = this.ui.menu;
+            const currentButtons = menuRegion.buttons[this.gameState] || [];
             
-            if (e.touches.length > 0) {
-                const touch = e.touches[0];
-                const rect = this.canvas.getBoundingClientRect();
-                
-                // Calculate position as percentage of canvas
-                const xPercent = (touch.clientX - rect.left) / rect.width;
-                const yPercent = (touch.clientY - rect.top) / rect.height;
-                
-                // Convert to canvas coordinates
-                const x = xPercent * this.canvas.width;
-                const y = yPercent * this.canvas.height;
-                
-                this.debug(`Touch at: ${Math.round(x)},${Math.round(y)}`);
+            currentButtons.forEach(button => {
+                if (button.id === 'defend' && !this.player.hasWeapon) return;
+                this.drawButton(button, menuRegion);
+            });
+        }
 
-                // Handle menu buttons
-                if (this.gameState === 'house') {
-                    Object.entries(this.menuControls).forEach(([name, button]) => {
-                        // Add padding to hit boxes
-                        const hitBox = {
-                            x1: button.x - 10,
-                            y1: button.y - 10,
-                            x2: button.x + button.width + 10,
-                            y2: button.y + button.height + 10
-                        };
-
-                        if (x >= hitBox.x1 && x <= hitBox.x2 && 
-                            y >= hitBox.y1 && y <= hitBox.y2) {
-                            this.debug(`Hit ${name} button`);
-                            switch(name) {
-                                case 'shopButton':
-                                    this.gameState = 'shop';
-                                    break;
-                                case 'radioButton':
-                                    this.listenToRadio();
-                                    break;
-                                case 'defendButton':
-                                    if (this.player.hasWeapon) {
-                                        this.gameState = 'defend';
-                                        this.switchBackgroundMusic('defend');
-                                        this.startWave();
-                                    }
-                                    break;
-                            }
-                            return;
-                        }
-                    });
+        // Draw shop items if in shop
+        if (this.gameState === 'shop') {
+            const shopRegion = this.ui.shop;
+            shopRegion.buttons.forEach((button, index) => {
+                if (!button.isWeapon || !this.weaponShop[button.id].secret || this.oakTree.scrollFound) {
+                    const buttonRegion = {
+                        ...shopRegion,
+                        top: shopRegion.top + (index * shopRegion.spacing)
+                    };
+                    this.drawButton(button, buttonRegion, index === this.shopSelection);
                 }
-            }
+            });
+        }
+
+        // Draw game controls if in defend mode
+        if (this.gameState === 'defend') {
+            const controlRegion = this.ui.controls;
+            controlRegion.buttons.forEach(button => {
+                const isPressed = 
+                    (button.id === 'left' && this.pressedButtons.left) ||
+                    (button.id === 'right' && this.pressedButtons.right);
+                this.drawButton(button, controlRegion, isPressed);
+            });
+        }
+
+        // Draw debug info
+        if (this.debugLog.length > 0) {
+            this.ctx.fillStyle = '#ff0';
+            this.ctx.font = '24px Arial';
+            this.debugLog.forEach((msg, i) => {
+                this.ctx.fillText(msg, 
+                    this.canvas.width - 600,
+                    50 + (i * 30)
+                );
+            });
+        }
+    }
+
+    drawButton(button, region, isPressed = false) {
+        const pos = this.relativeToScreen(button.x, region.top);
+        const size = {
+            width: button.width * this.canvas.width,
+            height: region.height * this.canvas.height
         };
 
-        this.canvas.addEventListener('touchstart', handleTouch, { passive: false });
-    }
+        // Draw button background
+        this.ctx.fillStyle = button.color;
+        this.ctx.globalAlpha = isPressed ? 0.9 : 0.7;
+        this.ctx.fillRect(pos.x, pos.y, size.width, size.height);
 
-    handleAction() {
-        this.debug('Action triggered');
-        // This method is no longer needed
-    }
-
-    drawTouchControls() {
-        // Make controls more visible
-        this.ctx.globalAlpha = 0.7; // More visible
-
-        // Left button
-        this.ctx.fillStyle = '#333';
-        this.ctx.beginPath();
-        this.ctx.arc(this.touchControls.leftButton.x, this.touchControls.leftButton.y, 
-            this.touchControls.leftButton.radius, 0, Math.PI * 2);
-        this.ctx.fill();
+        // Draw button text
+        this.ctx.globalAlpha = 1;
+        this.ctx.fillStyle = isPressed ? '#fff' : '#ddd';
+        this.ctx.font = '32px Arial';
         
-        // Add arrow symbol
-        this.ctx.fillStyle = 'white';
-        this.ctx.font = '30px Arial';
-        this.ctx.fillText('←', 
-            this.touchControls.leftButton.x - 15, 
-            this.touchControls.leftButton.y + 10);
-
-        // Right button
-        this.ctx.fillStyle = '#333';
-        this.ctx.beginPath();
-        this.ctx.arc(this.touchControls.rightButton.x, this.touchControls.rightButton.y, 
-            this.touchControls.rightButton.radius, 0, Math.PI * 2);
-        this.ctx.fill();
+        // Center text
+        const textWidth = this.ctx.measureText(button.text).width;
+        const textX = pos.x + (size.width - textWidth) / 2;
+        const textY = pos.y + size.height/2 + 12;
         
-        // Add arrow symbol
-        this.ctx.fillStyle = 'white';
-        this.ctx.fillText('→', 
-            this.touchControls.rightButton.x - 15, 
-            this.touchControls.rightButton.y + 10);
+        this.ctx.fillText(button.text, textX, textY);
 
-        // Shoot button
-        this.ctx.fillStyle = '#f00';
-        this.ctx.beginPath();
-        this.ctx.arc(this.touchControls.shootButton.x, this.touchControls.shootButton.y, 
-            this.touchControls.shootButton.radius, 0, Math.PI * 2);
-        this.ctx.fill();
-        
-        // Add shoot text
-        this.ctx.fillStyle = 'white';
-        this.ctx.fillText('SHOOT', 
-            this.touchControls.shootButton.x - 40, 
-            this.touchControls.shootButton.y + 10);
+        // Draw selection highlight for shop items
+        if (button.isWeapon && isPressed) {
+            this.ctx.strokeStyle = '#f1c40f';
+            this.ctx.lineWidth = 4;
+            this.ctx.strokeRect(pos.x - 2, pos.y - 2, size.width + 4, size.height + 4);
+        }
 
-        // Action button
-        this.ctx.fillStyle = '#0f0';
-        this.ctx.beginPath();
-        this.ctx.arc(this.touchControls.actionButton.x, this.touchControls.actionButton.y, 
-            this.touchControls.actionButton.radius, 0, Math.PI * 2);
-        this.ctx.fill();
-        
-        // Add action text
-        this.ctx.fillStyle = 'white';
-        this.ctx.fillText('ACTION', 
-            this.touchControls.actionButton.x - 40, 
-            this.touchControls.actionButton.y + 10);
-
-        this.ctx.globalAlpha = 1.0;
-    }
-
-    isMobileDevice() {
-        return true; // Always show touch controls for testing
-        // return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        // Draw debug outline
+        if (this.debugLog.length > 0) {
+            this.ctx.strokeStyle = '#ff0';
+            this.ctx.lineWidth = 2;
+            this.ctx.strokeRect(pos.x, pos.y, size.width, size.height);
+        }
     }
 
     async unlockAudioContext(audioContext) {
@@ -1440,15 +1072,164 @@ class Game {
         return audioContext;
     }
 
-    isInsideButton(x, y, button) {
-        const inside = x >= button.x && 
-               x <= button.x + button.width && 
-               y >= button.y && 
-               y <= button.y + button.height;
-        
-        if (inside) {
-            this.debug(`Button hit: ${button.text}`);
+    // Helper to convert screen coordinates to relative coordinates
+    screenToRelative(x, y) {
+        const rect = this.canvas.getBoundingClientRect();
+        return {
+            x: (x - rect.left) / rect.width,
+            y: (y - rect.top) / rect.height
+        };
+    }
+
+    // Helper to convert relative coordinates to screen coordinates
+    relativeToScreen(x, y) {
+        return {
+            x: x * this.canvas.width,
+            y: y * this.canvas.height
+        };
+    }
+
+    isInRegion(pos, button, region) {
+        return (
+            pos.y >= region.top && 
+            pos.y <= region.top + region.height &&
+            pos.x >= button.x && 
+            pos.x <= button.x + button.width
+        );
+    }
+
+    getActiveRegions() {
+        switch (this.gameState) {
+            case 'start':
+                return [this.ui.start];
+            case 'house':
+                return [this.ui.menu];
+            case 'shop':
+                return [this.ui.menu, this.ui.shop];
+            case 'defend':
+                return [this.ui.controls];
+            default:
+                return [];
         }
-        return inside;
+    }
+
+    handleButton(button) {
+        this.debug(`Button pressed: ${button.id}`);
+        
+        if (button.id === 'start') {
+            this.initializeAudio();
+            this.gameState = 'house';
+            return;
+        }
+
+        if (button.isControl) {
+            switch(button.id) {
+                case 'left':
+                    this.pressedButtons.left = true;
+                    break;
+                case 'right':
+                    this.pressedButtons.right = true;
+                    break;
+                case 'shoot':
+                    this.shoot();
+                    break;
+            }
+            return;
+        }
+
+        switch(button.id) {
+            case 'shop':
+                this.gameState = 'shop';
+                break;
+            case 'radio':
+                this.listenToRadio();
+                break;
+            case 'defend':
+                if (this.player.hasWeapon) {
+                    this.gameState = 'defend';
+                    this.switchBackgroundMusic('defend');
+                    this.startWave();
+                }
+                break;
+            case 'back':
+                this.gameState = 'house';
+                break;
+        }
+
+        if (button.isWeapon) {
+            this.shopSelection = button.index;
+            this.purchaseSelectedWeapon();
+        }
+    }
+
+    initializeUI() {
+        // Define UI regions and buttons for all game states
+        this.ui = {
+            start: {
+                top: 0.4,
+                height: 0.2,
+                buttons: [
+                    { id: 'start', text: 'Tap to Start', x: 0.2, width: 0.6, color: '#4a6fa5' }
+                ]
+            },
+            menu: {
+                top: 0.1,
+                height: 0.15,
+                buttons: {
+                    house: [
+                        { id: 'shop', text: 'Shop', x: 0.1, width: 0.25, color: '#4a6fa5' },
+                        { id: 'radio', text: 'Radio', x: 0.4, width: 0.25, color: '#4a6fa5' },
+                        { id: 'defend', text: 'Defend', x: 0.7, width: 0.25, color: '#4a6fa5' }
+                    ],
+                    shop: [
+                        { id: 'back', text: 'Back', x: 0.1, width: 0.2, color: '#4a6fa5' }
+                    ]
+                }
+            },
+            shop: {
+                top: 0.3,
+                height: 0.1,
+                spacing: 0.12,
+                buttons: Object.entries(this.weaponShop).map(([id, weapon], index) => ({
+                    id,
+                    text: `${weapon.name} - ${weapon.price} coins`,
+                    x: 0.1,
+                    width: 0.8,
+                    color: '#4a6fa5',
+                    isWeapon: true,
+                    index
+                }))
+            },
+            controls: {
+                top: 0.7,
+                height: 0.2,
+                buttons: [
+                    { id: 'left', text: '←', x: 0.1, width: 0.2, color: '#333', isControl: true },
+                    { id: 'right', text: '→', x: 0.35, width: 0.2, color: '#333', isControl: true },
+                    { id: 'shoot', text: 'SHOOT', x: 0.6, width: 0.3, color: '#f00' }
+                ]
+            }
+        };
+
+        // Initialize shop selection
+        this.shopSelection = 0;
+    }
+
+    startGameLoop() {
+        setInterval(() => this.update(), 1000/60);
+    }
+
+    getButtonsForRegion(region) {
+        if (region === this.ui.menu) {
+            return region.buttons[this.gameState] || [];
+        } else if (region === this.ui.shop) {
+            // Filter out secret weapons if scroll not found
+            return region.buttons.filter(button => 
+                !button.isWeapon || 
+                !this.weaponShop[button.id].secret || 
+                this.oakTree.scrollFound
+            );
+        }
+        return region.buttons || [];
     }
 } 
